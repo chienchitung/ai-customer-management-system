@@ -5,6 +5,51 @@ import { Customer, Interaction } from '../types';
 // The API key MUST be set in the environment variable `process.env.API_KEY`.
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
 
+const MAX_RETRIES = 3;
+const INITIAL_BACKOFF_MS = 1000;
+
+// A utility function to introduce a delay.
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
+ * A private function that wraps the Gemini API call with a retry mechanism.
+ * It handles 429 "Resource Exhausted" errors by waiting and retrying with exponential backoff.
+ * @param prompt The prompt string to send to the model.
+ * @returns A promise that resolves to the generated text content.
+ * @throws An error if the API call fails after all retries or for non-rate-limit reasons.
+ */
+const generateContentWithRetry = async (prompt: string): Promise<string> => {
+  let attempt = 0;
+  let backoff = INITIAL_BACKOFF_MS;
+
+  while (attempt < MAX_RETRIES) {
+    try {
+      const response = await ai.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: prompt,
+      });
+      return response.text.trim();
+    } catch (error: any) {
+      // Check if the error is a rate limit error.
+      const isRateLimitError = error.toString().includes('429') || error.toString().includes('RESOURCE_EXHAUSTED');
+      
+      if (isRateLimitError && attempt < MAX_RETRIES - 1) {
+        console.warn(`Rate limit exceeded. Retrying in ${backoff}ms... (Attempt ${attempt + 1}/${MAX_RETRIES})`);
+        await delay(backoff);
+        attempt++;
+        backoff *= 2; // Exponentially increase the backoff time for the next attempt.
+      } else {
+        // If it's not a rate limit error or we've exhausted all retries, throw the error.
+        console.error(`API call failed on attempt ${attempt + 1}.`, error);
+        throw error;
+      }
+    }
+  }
+  // This line should be unreachable if MAX_RETRIES > 0, but it satisfies TypeScript's requirement for a return path.
+  throw new Error('Failed to get response from AI after multiple retries.');
+};
+
+
 /**
  * Creates a detailed prompt from customer data for the AI model.
  * @param customer The customer object.
@@ -56,17 +101,10 @@ const createPrompt = (customer: Customer, task: string, language: 'en' | 'zh'): 
 export const getFollowUpSuggestion = async (customer: Customer, language: 'en' | 'zh'): Promise<string> => {
   const task = "Based on the profile and history, suggest a single, concrete, and actionable next step to move the sales process forward. Explain your reasoning briefly.";
   const prompt = createPrompt(customer, task, language);
-
   try {
-    // Call the Gemini API to generate content.
-    const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-    });
-    // Return the text part of the response.
-    return response.text.trim();
+    return await generateContentWithRetry(prompt);
   } catch (error) {
-    console.error('Error generating follow-up suggestion:', error);
+    console.error('Error generating follow-up suggestion after retries:', error);
     return 'An error occurred while fetching AI suggestion. Please check the console for details.';
   }
 };
@@ -80,17 +118,10 @@ export const getFollowUpSuggestion = async (customer: Customer, language: 'en' |
 export const summarizeInteractions = async (customer: Customer, language: 'en' | 'zh'): Promise<string> => {
   const task = "Summarize the key points and overall sentiment of the interaction history in 2-3 sentences. Identify any potential opportunities or risks.";
   const prompt = createPrompt(customer, task, language);
-
   try {
-    // Call the Gemini API to generate content.
-    const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-    });
-    // Return the text part of the response.
-    return response.text.trim();
+    return await generateContentWithRetry(prompt);
   } catch (error) {
-    console.error('Error summarizing interactions:', error);
+    console.error('Error summarizing interactions after retries:', error);
     return 'An error occurred while fetching AI summary. Please check the console for details.';
   }
 };
@@ -116,13 +147,9 @@ export const draftFollowUpEmail = async (customer: Customer, language: 'en' | 'z
     const prompt = createPrompt(customer, task, language);
   
     try {
-      const response = await ai.models.generateContent({
-          model: 'gemini-2.5-flash',
-          contents: prompt,
-      });
-      return response.text.trim();
+      return await generateContentWithRetry(prompt);
     } catch (error) {
-      console.error('Error drafting email:', error);
+      console.error('Error drafting email after retries:', error);
       return 'An error occurred while drafting the email.';
     }
 };
@@ -144,13 +171,9 @@ Keep the briefing concise and easy to scan in 5 minutes. Use Markdown for format
     const prompt = createPrompt(customer, task, language);
   
     try {
-      const response = await ai.models.generateContent({
-          model: 'gemini-2.5-flash',
-          contents: prompt,
-      });
-      return response.text.trim();
+      return await generateContentWithRetry(prompt);
     } catch (error) {
-      console.error('Error generating briefing:', error);
+      console.error('Error generating briefing after retries:', error);
       return 'An error occurred while generating the briefing.';
     }
 };
@@ -172,13 +195,9 @@ export const getProactiveSummary = async (customer: Customer, language: 'en' | '
   const prompt = createPrompt(customer, task, language);
 
   try {
-    const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-    });
-    return response.text.trim();
+    return await generateContentWithRetry(prompt);
   } catch (error) {
-    console.error('Error generating proactive summary:', error);
+    console.error('Error generating proactive summary after retries:', error);
     return 'An error occurred while fetching AI summary.';
   }
 };

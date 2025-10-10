@@ -7,12 +7,13 @@ import { CalendarIcon, IdentificationIcon, LightBulbIcon, PencilIcon, SearchIcon
 
 // Mapping customer statuses to specific Tailwind CSS classes for color-coding.
 export const statusColors: { [key in CustomerStatus]: { text: string; bg: string; border: string; dropdown: string } } = {
-  [CustomerStatus.LEAD]: { text: 'text-cyan-800 dark:text-cyan-300', bg: 'bg-cyan-50 dark:bg-cyan-500/10', border: 'border-cyan-200 dark:border-cyan-500/30', dropdown: 'border-cyan-500/50 text-cyan-800 bg-cyan-50 dark:bg-cyan-500/10 dark:text-cyan-300' },
-  [CustomerStatus.PROSPECT]: { text: 'text-blue-800 dark:text-blue-300', bg: 'bg-blue-50 dark:bg-blue-500/10', border: 'border-blue-200 dark:border-blue-500/30', dropdown: 'border-blue-500/50 text-blue-800 bg-blue-50 dark:bg-blue-500/10 dark:text-blue-300' },
-  [CustomerStatus.NEGOTIATION]: { text: 'text-yellow-800 dark:text-yellow-300', bg: 'bg-yellow-50 dark:bg-yellow-500/10', border: 'border-yellow-200 dark:border-yellow-500/30', dropdown: 'border-yellow-500/50 text-yellow-800 bg-yellow-50 dark:bg-yellow-500/10 dark:text-yellow-300' },
-  [CustomerStatus.CLOSED_WON]: { text: 'text-green-800 dark:text-green-300', bg: 'bg-green-50 dark:bg-green-500/10', border: 'border-green-200 dark:border-green-500/30', dropdown: 'border-green-500/50 text-green-800 bg-green-50 dark:bg-green-500/10 dark:text-green-300' },
-  [CustomerStatus.CLOSED_LOST]: { text: 'text-red-800 dark:text-red-300', bg: 'bg-red-50 dark:bg-red-500/10', border: 'border-red-200 dark:border-red-500/30', dropdown: 'border-red-500/50 text-red-800 bg-red-50 dark:bg-red-500/10 dark:text-red-300' },
+  [CustomerStatus.LEAD]: { text: 'text-sky-800 dark:text-sky-200', bg: 'bg-sky-200/60 dark:bg-sky-500/30', border: 'border-sky-300 dark:border-sky-500/40', dropdown: 'border-sky-500/50 text-sky-800 bg-sky-50 dark:bg-sky-500/10 dark:text-sky-200' },
+  [CustomerStatus.PROSPECT]: { text: 'text-blue-800 dark:text-blue-200', bg: 'bg-blue-200/60 dark:bg-blue-500/30', border: 'border-blue-300 dark:border-blue-500/40', dropdown: 'border-blue-500/50 text-blue-800 bg-blue-50 dark:bg-blue-500/10 dark:text-blue-200' },
+  [CustomerStatus.NEGOTIATION]: { text: 'text-amber-800 dark:text-amber-200', bg: 'bg-amber-200/60 dark:bg-amber-500/30', border: 'border-amber-300 dark:border-amber-500/40', dropdown: 'border-amber-500/50 text-amber-800 bg-amber-50 dark:bg-amber-500/10 dark:text-amber-200' },
+  [CustomerStatus.CLOSED_WON]: { text: 'text-green-800 dark:text-green-200', bg: 'bg-green-200/70 dark:bg-green-500/30', border: 'border-green-300 dark:border-green-500/40', dropdown: 'border-green-500/50 text-green-800 bg-green-50 dark:bg-green-500/10 dark:text-green-200' },
+  [CustomerStatus.CLOSED_LOST]: { text: 'text-rose-800 dark:text-rose-200', bg: 'bg-rose-200/60 dark:bg-rose-500/30', border: 'border-rose-300 dark:border-rose-500/40', dropdown: 'border-rose-500/50 text-rose-800 bg-rose-50 dark:bg-rose-500/10 dark:text-rose-200' },
 };
+
 
 interface CustomerDashboardProps {
   viewMode: 'list' | 'kanban';
