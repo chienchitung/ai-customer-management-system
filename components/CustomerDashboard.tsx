@@ -1,10 +1,9 @@
-import React, { useState } from 'react';
-import { Customer, CustomerStatus, Interaction, InteractionType, Sentiment, KeyContact } from '../types';
-import { analyzeSentiment } from '../services/geminiService';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Customer, CustomerStatus, Interaction, InteractionType, KeyContact } from '../types';
 import { t, translateStatus } from '../localization';
 import AIAssistant from './AIAssistant';
 import KanbanBoard from './KanbanBoard';
-import { HappyIcon, NeutralIcon, SadIcon, CalendarIcon } from './icons';
+import { CalendarIcon, IdentificationIcon, LightBulbIcon, PencilIcon, SearchIcon, FilterIcon } from './icons';
 
 // Mapping customer statuses to specific Tailwind CSS classes for color-coding.
 export const statusColors: { [key in CustomerStatus]: { text: string; bg: string; border: string; dropdown: string } } = {
@@ -23,7 +22,9 @@ interface CustomerDashboardProps {
   onAddInteraction: (customerId: string, interaction: Omit<Interaction, 'id'>) => void;
   onUpdateCustomer: (customerId: string, updatedData: Partial<Omit<Customer, 'id'>>) => void;
   onOpenAddCustomerModal: () => void;
+  onEditCustomer: (customer: Customer) => void;
   language: 'en' | 'zh';
+  isAIAssistantOpen: boolean;
 }
 
 const CustomerDashboard: React.FC<CustomerDashboardProps> = (props) => {
@@ -40,13 +41,126 @@ const ListView: React.FC<CustomerDashboardProps> = ({
   onAddInteraction,
   onUpdateCustomer,
   onOpenAddCustomerModal,
-  language
+  onEditCustomer,
+  language,
+  isAIAssistantOpen
 }) => {
+    const [searchQuery, setSearchQuery] = useState('');
+    const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+    const [statusFilter, setStatusFilter] = useState('all');
+    const [lastContactStart, setLastContactStart] = useState('');
+    const [lastContactEnd, setLastContactEnd] = useState('');
+    const [dealValueMin, setDealValueMin] = useState('');
+    const [dealValueMax, setDealValueMax] = useState('');
+
+    const handleClearFilters = () => {
+        setSearchQuery('');
+        setStatusFilter('all');
+        setLastContactStart('');
+        setLastContactEnd('');
+        setDealValueMin('');
+        setDealValueMax('');
+    };
+
+    const filteredCustomers = useMemo(() => {
+        return customers
+            .filter(customer =>
+                // Search Query Filter
+                customer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                customer.company.toLowerCase().includes(searchQuery.toLowerCase())
+            )
+            .filter(customer => {
+                // Status Filter
+                if (statusFilter === 'all') return true;
+                return customer.status === statusFilter;
+            })
+            .filter(customer => {
+                // Last Contact Date Filter
+                if (!lastContactStart && !lastContactEnd) return true;
+                const customerDate = new Date(customer.lastContact);
+                if (lastContactStart && customerDate < new Date(lastContactStart)) return false;
+                if (lastContactEnd) {
+                    const endDate = new Date(lastContactEnd);
+                    endDate.setHours(23, 59, 59, 999);
+                    if (customerDate > endDate) return false;
+                }
+                return true;
+            })
+            .filter(customer => {
+                // Deal Value Filter
+                const min = dealValueMin ? parseFloat(dealValueMin) : null;
+                const max = dealValueMax ? parseFloat(dealValueMax) : null;
+                if (min === null && max === null) return true;
+                
+                const value = customer.dealValue;
+                if (value === undefined) return false;
+                
+                const minMatch = min === null || value >= min;
+                const maxMatch = max === null || value <= max;
+                return minMatch && maxMatch;
+            });
+    }, [customers, searchQuery, statusFilter, lastContactStart, lastContactEnd, dealValueMin, dealValueMax]);
+
+    if (customers.length === 0) {
+        return <WelcomeScreen onOpenAddCustomerModal={onOpenAddCustomerModal} language={language} />;
+    }
+
     return (
-         <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 gap-6 h-[calc(100vh-104px)]">
-            <div className="md:col-span-1 lg:col-span-1 bg-surface rounded-lg border border-border overflow-y-auto">
-                <ul className="p-2 space-y-1">
-                {customers.map(customer => (
+         <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 gap-6 h-full">
+            <div className="md:col-span-1 lg:col-span-1 bg-surface rounded-lg border border-border overflow-y-auto flex flex-col">
+                <div className="p-2 sticky top-0 bg-surface z-10 border-b border-border">
+                  <div className="flex items-center gap-2">
+                    <div className="relative flex-grow">
+                      <input
+                        type="text"
+                        placeholder={t('searchCustomer', language)}
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full bg-secondary border border-transparent rounded-md py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition"
+                      />
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <SearchIcon className="w-5 h-5 text-text-secondary" />
+                      </div>
+                    </div>
+                    <button 
+                        onClick={() => setShowAdvancedFilters(prev => !prev)}
+                        className={`p-2 rounded-md transition-colors ${showAdvancedFilters ? 'bg-primary/20 text-primary' : 'hover:bg-secondary'}`}
+                        title={t('filters.advancedFilters', language)}
+                    >
+                        <FilterIcon className="w-5 h-5" />
+                    </button>
+                  </div>
+                  {showAdvancedFilters && (
+                    <div className="p-2 mt-2 space-y-3 bg-secondary/50 rounded-md">
+                        <div>
+                            <label className="text-xs font-medium text-text-secondary">{t('filters.status', language)}</label>
+                            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="w-full mt-1 bg-surface border border-border rounded-md py-1 px-2 text-sm focus:ring-2 focus:ring-primary/50 outline-none transition">
+                                <option value="all">{t('filters.allStatuses', language)}</option>
+                                {Object.values(CustomerStatus).map(s => <option key={s} value={s}>{translateStatus(s, language)}</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="text-xs font-medium text-text-secondary">{t('filters.lastContact', language)}</label>
+                            <div className="flex items-center gap-2 mt-1">
+                                <input type="date" value={lastContactStart} onChange={e => setLastContactStart(e.target.value)} className="w-full bg-surface border border-border rounded-md py-1 px-2 text-sm focus:ring-2 focus:ring-primary/50 outline-none transition" />
+                                <span className="text-text-secondary text-sm">-</span>
+                                <input type="date" value={lastContactEnd} onChange={e => setLastContactEnd(e.target.value)} min={lastContactStart} className="w-full bg-surface border border-border rounded-md py-1 px-2 text-sm focus:ring-2 focus:ring-primary/50 outline-none transition" />
+                            </div>
+                        </div>
+                        <div>
+                            <label className="text-xs font-medium text-text-secondary">{t('filters.dealValue', language)}</label>
+                             <div className="flex items-center gap-2 mt-1">
+                                <input type="number" placeholder={t('filters.min', language)} value={dealValueMin} onChange={e => setDealValueMin(e.target.value)} className="w-full bg-surface border border-border rounded-md py-1 px-2 text-sm focus:ring-2 focus:ring-primary/50 outline-none transition" />
+                                <span className="text-text-secondary text-sm">-</span>
+                                <input type="number" placeholder={t('filters.max', language)} value={dealValueMax} onChange={e => setDealValueMax(e.target.value)} className="w-full bg-surface border border-border rounded-md py-1 px-2 text-sm focus:ring-2 focus:ring-primary/50 outline-none transition" />
+                            </div>
+                        </div>
+                        <button onClick={handleClearFilters} className="w-full text-center text-sm font-semibold text-primary hover:underline">{t('filters.clear', language)}</button>
+                    </div>
+                  )}
+                </div>
+                <ul className="p-2 space-y-1 flex-grow">
+                {filteredCustomers.map(customer => (
                     <li
                         key={customer.id}
                         onClick={() => onSelectCustomer(customer.id)}
@@ -54,33 +168,46 @@ const ListView: React.FC<CustomerDashboardProps> = ({
                             selectedCustomer?.id === customer.id ? 'bg-primary/10' : 'hover:bg-secondary'
                         }`}
                     >
-                        <h3 className="font-semibold text-text-primary">{customer.name}</h3>
-                        <p className="text-sm text-text-secondary">{customer.company}</p>
+                        <div className="flex justify-between items-start gap-2">
+                            <div>
+                                <h3 className="font-semibold text-text-primary">{customer.name}</h3>
+                                <p className="text-sm text-text-secondary">{customer.company}</p>
+                            </div>
+                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${statusColors[customer.status].bg} ${statusColors[customer.status].text}`}>
+                                {translateStatus(customer.status, language)}
+                            </span>
+                        </div>
                     </li>
                 ))}
                 </ul>
             </div>
 
-            <div className="md:col-span-3 lg:col-span-4 overflow-y-auto">
+            <div className="md:col-span-3 lg:col-span-4">
                 {selectedCustomer ? (
-                <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                    <div className="xl:col-span-2">
-                    <CustomerDetails
-                        customer={selectedCustomer}
-                        onAddInteraction={onAddInteraction}
-                        onUpdateCustomer={onUpdateCustomer}
-                        language={language}
-                    />
+                <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 h-full">
+                    <div
+                        key={`${selectedCustomer.id}-${language}`}
+                        className={`space-y-6 overflow-y-auto pr-2 transition-all duration-300 ${isAIAssistantOpen ? 'xl:col-span-2' : 'xl:col-span-3'}`}
+                    >
+                        <CustomerDetails
+                            customer={selectedCustomer}
+                            onAddInteraction={onAddInteraction}
+                            onUpdateCustomer={onUpdateCustomer}
+                            onEditCustomer={() => onEditCustomer(selectedCustomer)}
+                            language={language}
+                        />
                     </div>
-                    <div className="xl:col-span-1">
-                    <AIAssistant customer={selectedCustomer} language={language} />
-                    </div>
+                    {isAIAssistantOpen && (
+                        <div className="xl:col-span-1">
+                            <AIAssistant customer={selectedCustomer} language={language} />
+                        </div>
+                    )}
                 </div>
                 ) : (
                 <div className="flex flex-col items-center justify-center h-full text-text-secondary bg-surface rounded-lg border border-border">
                     <p className="text-lg">{t('selectCustomerPrompt', language)}</p>
                     <p className="text-sm mt-2">{t('or', language)}</p>
-                    <button onClick={onOpenAddCustomerModal} className="mt-4 px-4 py-2 bg-primary text-white text-sm font-semibold rounded-md hover:bg-primary/90 transition">{t('addNewCustomer', language)}</button>
+                    <button onClick={onOpenAddCustomerModal} className="mt-4 px-4 py-2 bg-primary text-white text-sm font-semibold rounded-md hover:bg-primary/90 transition active:scale-95">{t('addNewCustomer', language)}</button>
                 </div>
                 )}
             </div>
@@ -88,65 +215,233 @@ const ListView: React.FC<CustomerDashboardProps> = ({
     );
 };
 
-const SentimentIcon: React.FC<{ sentiment?: Sentiment }> = ({ sentiment }) => {
-    if (!sentiment) return null;
-    switch (sentiment) {
-        case Sentiment.POSITIVE: return <HappyIcon title="Positive Sentiment" />;
-        case Sentiment.NEUTRAL: return <NeutralIcon title="Neutral Sentiment" />;
-        case Sentiment.NEGATIVE: return <SadIcon title="Negative Sentiment" />;
-        default: return null;
-    }
+const WelcomeScreen: React.FC<{ onOpenAddCustomerModal: () => void, language: 'en' | 'zh' }> = ({ onOpenAddCustomerModal, language }) => {
+    return (
+        <div className="col-span-full h-full flex flex-col items-center justify-center text-center p-8 bg-surface rounded-lg border border-border">
+            <div className="p-4 bg-primary/10 rounded-full mb-6">
+                <LightBulbIcon className="w-12 h-12 text-primary" />
+            </div>
+            <h2 className="text-2xl font-bold text-text-primary">{t('welcome.title', language)}</h2>
+            <p className="mt-2 max-w-lg text-text-secondary">
+                {t('welcome.message', language)}
+            </p>
+            <button 
+                onClick={onOpenAddCustomerModal} 
+                className="mt-8 px-6 py-3 bg-primary text-white text-base font-semibold rounded-lg hover:bg-primary/90 transition-transform active:scale-95"
+            >
+                {t('welcome.cta', language)}
+            </button>
+        </div>
+    );
 };
 
 const CustomerDetails: React.FC<{
   customer: Customer;
   onAddInteraction: CustomerDashboardProps['onAddInteraction'];
   onUpdateCustomer: CustomerDashboardProps['onUpdateCustomer'];
+  onEditCustomer: () => void;
   language: 'en' | 'zh';
-}> = ({ customer, onAddInteraction, onUpdateCustomer, language }) => (
-  <div className="space-y-6">
-    <div className="flex flex-wrap items-start justify-between gap-4 mb-2">
-      <div>
-        <h2 className="text-3xl font-bold text-text-primary">{customer.name}</h2>
-        <p className="text-text-secondary mt-1">{customer.company} &middot; {customer.email}</p>
-      </div>
-      <select
-        value={customer.status}
-        onChange={(e) => onUpdateCustomer(customer.id, { status: e.target.value as CustomerStatus })}
-        className={`text-sm font-semibold px-3 py-1.5 rounded-md border-2 outline-none appearance-none focus:ring-2 focus:ring-primary/50 transition-all ${statusColors[customer.status].dropdown}`}
-      >
-        {Object.values(CustomerStatus).map(status => (
-            <option key={status} value={status} className="bg-surface text-text-primary font-medium">{translateStatus(status, language)}</option>
-        ))}
-    </select>
-    </div>
-    
-    <InteractionLogger customerId={customer.id} onAddInteraction={onAddInteraction} language={language} />
+}> = ({ customer, onAddInteraction, onUpdateCustomer, onEditCustomer, language }) => {
+    const [typeFilter, setTypeFilter] = useState<string>('all');
+    const [startDateFilter, setStartDateFilter] = useState<string>('');
+    const [endDateFilter, setEndDateFilter] = useState<string>('');
 
-    <div>
-      <h3 className="text-xl font-bold text-text-primary mb-4">{t('interactionHistory', language)}</h3>
-      <ul className="space-y-4">
-        {customer.interactions.length > 0 ? customer.interactions.map(interaction => (
-          <li key={interaction.id} className="p-4 bg-surface rounded-lg border border-border">
-            <div className="flex justify-between items-start">
-              <div>
-                <div className="flex items-center gap-2">
-                    <p className="font-semibold text-primary">{interaction.type}</p>
-                    <SentimentIcon sentiment={interaction.sentiment} />
-                </div>
-                <p className="mt-2 text-sm text-text-primary">{interaction.summary}</p>
-              </div>
-              <p className="text-xs text-text-secondary flex-shrink-0 ml-4">{interaction.date}</p>
+    // Reset filters when the customer changes
+    useEffect(() => {
+        setTypeFilter('all');
+        setStartDateFilter('');
+        setEndDateFilter('');
+    }, [customer.id]);
+
+    const filteredInteractions = useMemo(() => {
+        return customer.interactions.filter(interaction => {
+            const typeMatch = typeFilter === 'all' || interaction.type === typeFilter;
+            const date = new Date(interaction.date);
+            const startDate = startDateFilter ? new Date(startDateFilter) : null;
+            const endDate = endDateFilter ? new Date(endDateFilter) : null;
+
+            // Adjust start date to the beginning of the day and end date to the end of the day
+            if (startDate) startDate.setHours(0, 0, 0, 0);
+            if (endDate) endDate.setHours(23, 59, 59, 999);
+
+            const startDateMatch = !startDate || date >= startDate;
+            const endDateMatch = !endDate || date <= endDate;
+
+            return typeMatch && startDateMatch && endDateMatch;
+        });
+    }, [customer.interactions, typeFilter, startDateFilter, endDateFilter]);
+
+    return (
+    <>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+            <h2 className="text-3xl font-bold text-text-primary">{customer.name}</h2>
+            <p className="text-text-secondary mt-1">{customer.company} &middot; {customer.email}</p>
+        </div>
+        <div className="flex items-center gap-2">
+            <button 
+                onClick={onEditCustomer} 
+                className="h-9 w-9 flex items-center justify-center rounded-full bg-surface border border-border text-text-secondary hover:bg-secondary transition-colors active:scale-95"
+                title={t('editCustomer', language)}
+            >
+                <PencilIcon className="w-5 h-5" />
+            </button>
+            <select
+                value={customer.status}
+                onChange={(e) => onUpdateCustomer(customer.id, { status: e.target.value as CustomerStatus })}
+                className={`text-sm font-semibold px-3 py-1.5 rounded-md border-2 outline-none appearance-none focus:ring-2 focus:ring-primary/50 transition-all ${statusColors[customer.status].dropdown}`}
+            >
+                {Object.values(CustomerStatus).map(status => (
+                    <option key={status} value={status} className="bg-surface text-text-primary font-medium">{translateStatus(status, language)}</option>
+                ))}
+            </select>
+        </div>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <NextActionCard customer={customer} language={language} />
+            <KeyContactsCard contacts={customer.keyContacts} language={language} />
+        </div>
+
+        <CustomerProfileCard customer={customer} language={language} />
+        
+        <InteractionLogger customerId={customer.id} onAddInteraction={onAddInteraction} language={language} />
+
+        <div className="bg-surface p-4 rounded-lg border border-border">
+        <h3 className="text-xl font-bold text-text-primary mb-4">{t('interactionHistory', language)}</h3>
+        
+        {/* Filters */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4 p-3 bg-secondary/50 rounded-lg">
+            <div>
+                <label className="text-xs font-medium text-text-secondary">{t('filters.type', language)}</label>
+                <select
+                    value={typeFilter}
+                    onChange={e => setTypeFilter(e.target.value)}
+                    className="w-full mt-1 bg-surface border border-border rounded-md py-1.5 px-2 text-sm focus:ring-2 focus:ring-primary/50 outline-none transition"
+                >
+                    <option value="all">{t('filters.all', language)}</option>
+                    {Object.values(InteractionType).map(it => <option key={it} value={it}>{it}</option>)}
+                </select>
             </div>
-          </li>
-        )) : (
-            <li className="p-4 bg-surface rounded-lg border border-border text-center text-text-secondary text-sm">
-                {t('noInteractions', language)}
-            </li>
+            <div className="lg:col-span-2">
+                <label className="text-xs font-medium text-text-secondary">{t('filters.dateRange', language)}</label>
+                <div className="flex items-center gap-2 mt-1">
+                     <input
+                        type="date"
+                        value={startDateFilter}
+                        onChange={e => setStartDateFilter(e.target.value)}
+                        className="w-full bg-surface border border-border rounded-md py-1.5 px-2 text-sm focus:ring-2 focus:ring-primary/50 outline-none transition"
+                        aria-label={t('filters.from', language)}
+                    />
+                     <span className="text-text-secondary">-</span>
+                     <input
+                        type="date"
+                        value={endDateFilter}
+                        onChange={e => setEndDateFilter(e.target.value)}
+                        min={startDateFilter}
+                        className="w-full bg-surface border border-border rounded-md py-1.5 px-2 text-sm focus:ring-2 focus:ring-primary/50 outline-none transition"
+                        aria-label={t('filters.to', language)}
+                    />
+                </div>
+            </div>
+        </div>
+
+        <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+                <thead className="border-b border-border text-text-secondary">
+                    <tr>
+                        <th className="font-semibold p-2">{t('table.date', language)}</th>
+                        <th className="font-semibold p-2">{t('table.type', language)}</th>
+                        <th className="font-semibold p-2">{t('table.summary', language)}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {filteredInteractions.length > 0 ? filteredInteractions.map(interaction => (
+                    <tr key={interaction.id} className="border-b border-border last:border-b-0 hover:bg-secondary">
+                        <td className="p-2 whitespace-nowrap text-text-secondary">{interaction.date}</td>
+                        <td className="p-2">
+                            <span className="font-semibold text-primary">{interaction.type}</span>
+                        </td>
+                        <td className="p-2 text-text-primary">{interaction.summary}</td>
+                    </tr>
+                    )) : (
+                    <tr>
+                        <td colSpan={3} className="p-4 text-center text-text-secondary">
+                            {t('noInteractions', language)}
+                        </td>
+                    </tr>
+                    )}
+                </tbody>
+            </table>
+        </div>
+        </div>
+    </>
+    );
+};
+
+const NextActionCard: React.FC<{customer: Customer, language: 'en' | 'zh'}> = ({ customer, language }) => (
+    <div className="bg-surface p-4 rounded-lg border border-border">
+        <h4 className="font-semibold text-text-primary mb-2">{t('nextAction', language)}</h4>
+        {customer.nextAction ? (
+            <div>
+                <p className="text-text-primary">{customer.nextAction.description}</p>
+                <div className="flex items-center gap-2 mt-2 text-sm text-red-600 dark:text-red-400 font-medium">
+                    <CalendarIcon className="w-4 h-4" />
+                    <span>{t('dueDate', language)}: {customer.nextAction.dueDate}</span>
+                </div>
+            </div>
+        ) : (
+            <p className="text-text-secondary text-sm">{t('noNextAction', language)}</p>
         )}
-      </ul>
     </div>
-  </div>
+);
+
+const KeyContactsCard: React.FC<{ contacts?: KeyContact[], language: 'en' | 'zh' }> = ({ contacts, language }) => (
+    <div className="bg-surface p-4 rounded-lg border border-border">
+        <div className="flex items-center gap-2 mb-2">
+             <IdentificationIcon className="w-5 h-5 text-text-secondary" />
+             <h4 className="font-semibold text-text-primary">{t('keyContacts', language)}</h4>
+        </div>
+        {contacts && contacts.length > 0 ? (
+            <ul className="space-y-1">
+                {contacts.map(contact => (
+                    <li key={contact.id} className="text-sm">
+                        <span className="font-medium text-text-primary">{contact.name}</span>
+                        <span className="text-text-secondary"> - {contact.title}</span>
+                    </li>
+                ))}
+            </ul>
+        ) : (
+            <p className="text-text-secondary text-sm">{t('noContacts', language)}</p>
+        )}
+    </div>
+);
+
+const CustomerProfileCard: React.FC<{customer: Customer, language: 'en' | 'zh'}> = ({ customer, language }) => (
+    <div className="bg-surface p-4 rounded-lg border border-border">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+            <div>
+                <h5 className="text-sm font-semibold text-text-secondary mb-1">{t('dealValue', language)}</h5>
+                <p className="text-lg font-bold text-primary">{customer.dealValue ? `$${customer.dealValue.toLocaleString()}` : 'N/A'}</p>
+            </div>
+             <div>
+                <h5 className="text-sm font-semibold text-text-secondary mb-1">{t('knownCompetitors', language)}</h5>
+                <p className="text-sm text-text-primary">{customer.competitors?.join(', ') || t('notAvailable', language)}</p>
+            </div>
+            <div className="md:col-span-2">
+                <h5 className="text-sm font-semibold text-text-secondary mb-1">{t('customerPainPoints', language)}</h5>
+                {customer.customerPainPoints && customer.customerPainPoints.length > 0 ? (
+                    <ul className="list-disc list-inside space-y-1">
+                       {customer.customerPainPoints.map((point, index) => (
+                           <li key={index} className="text-sm text-text-primary">{point}</li>
+                       ))}
+                    </ul>
+                ) : (
+                    <p className="text-sm text-text-primary">{t('notAvailable', language)}</p>
+                )}
+            </div>
+        </div>
+    </div>
 );
 
 const InteractionLogger: React.FC<{ 
@@ -154,25 +449,30 @@ const InteractionLogger: React.FC<{
     onAddInteraction: CustomerDashboardProps['onAddInteraction'];
     language: 'en' | 'zh'; 
 }> = ({ customerId, onAddInteraction, language }) => {
-  const [summary, setSummary] = useState('');
-  const [type, setType] = useState<InteractionType>(InteractionType.NOTE);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [summary, setSummary] = React.useState('');
+  const [type, setType] = React.useState<InteractionType>(InteractionType.NOTE);
+  // FIX: Added a specific type for quick log keys to ensure type safety with the `t` function.
+  type QuickLogKey = 'followUp' | 'voicemail' | 'meetingScheduled';
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!summary.trim() || isAnalyzing) return;
-    
-    setIsAnalyzing(true);
-    const sentiment = await analyzeSentiment(summary);
+  const handleSubmit = (e?: React.FormEvent, quickLogSummary?: string, quickLogType?: InteractionType) => {
+    if (e) e.preventDefault();
+    const currentSummary = quickLogSummary || summary;
+    if (!currentSummary.trim()) return;
     
     onAddInteraction(customerId, {
-      type,
-      summary,
+      type: quickLogType || type,
+      summary: currentSummary,
       date: new Date().toISOString().split('T')[0],
-      sentiment,
     });
     setSummary('');
-    setIsAnalyzing(false);
+    if (!quickLogSummary) {
+        setType(InteractionType.NOTE);
+    }
+  };
+
+  const handleQuickLog = (templateKey: QuickLogKey, interactionType: InteractionType) => {
+      const logText = t(`quickLog.${templateKey}`, language);
+      handleSubmit(undefined, logText, interactionType);
   };
 
   return (
@@ -184,22 +484,24 @@ const InteractionLogger: React.FC<{
         placeholder={t('logInteractionPlaceholder', language)}
         className="w-full bg-secondary rounded-md p-3 text-sm focus:ring-2 focus:ring-primary/50 outline-none transition"
         rows={3}
-        disabled={isAnalyzing}
       />
+      <div className="flex items-center gap-2 mt-2 flex-wrap">
+          <button type="button" onClick={() => handleQuickLog('followUp', InteractionType.EMAIL)} className="text-xs px-2 py-1 bg-secondary rounded-md hover:bg-border dark:hover:bg-slate-600 transition active:scale-95">{t('quickLog.followUp', language)}</button>
+          <button type="button" onClick={() => handleQuickLog('voicemail', InteractionType.CALL)} className="text-xs px-2 py-1 bg-secondary rounded-md hover:bg-border dark:hover:bg-slate-600 transition active:scale-95">{t('quickLog.voicemail', language)}</button>
+          <button type="button" onClick={() => handleQuickLog('meetingScheduled', InteractionType.MEETING)} className="text-xs px-2 py-1 bg-secondary rounded-md hover:bg-border dark:hover:bg-slate-600 transition active:scale-95">{t('quickLog.meetingScheduled', language)}</button>
+      </div>
       <div className="flex justify-between items-center mt-3">
         <select
           value={type}
           onChange={e => setType(e.target.value as InteractionType)}
           className="bg-secondary rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-primary/50 outline-none transition appearance-none"
-          disabled={isAnalyzing}
         >
           {Object.values(InteractionType).map(it => (
             <option key={it} value={it}>{it}</option>
           ))}
         </select>
-        <button type="submit" className="px-4 py-2 bg-primary text-white text-sm font-semibold rounded-md hover:bg-primary/90 transition disabled:opacity-50 flex items-center gap-2" disabled={!summary.trim() || isAnalyzing}>
-          {isAnalyzing && <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>}
-          {isAnalyzing ? t('analyzing', language) : t('logInteraction', language)}
+        <button type="submit" className="px-4 py-2 bg-primary text-white text-sm font-semibold rounded-md hover:bg-primary/90 transition disabled:opacity-50 flex items-center gap-2 active:scale-95" disabled={!summary.trim()}>
+          {t('logInteraction', language)}
         </button>
       </div>
     </form>

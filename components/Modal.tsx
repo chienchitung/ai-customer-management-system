@@ -21,7 +21,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
       onClick={onClose} // Close modal on overlay click.
     >
       <div
-        className="bg-surface rounded-lg shadow-xl w-full max-w-md m-4 border border-border"
+        className="bg-surface rounded-lg shadow-xl w-full max-w-3xl m-4 border border-border"
         onClick={e => e.stopPropagation()} // Prevent closing when clicking inside the modal content.
       >
         {/* Modal Header */}

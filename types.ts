@@ -1,10 +1,3 @@
-// Enum for sentiment analysis of interactions.
-export enum Sentiment {
-  POSITIVE = 'Positive',
-  NEUTRAL = 'Neutral',
-  NEGATIVE = 'Negative',
-}
-
 // Enum for the different stages of a customer in the sales pipeline.
 export enum CustomerStatus {
   LEAD = 'Lead',
@@ -28,7 +21,6 @@ export interface Interaction {
   type: InteractionType;
   date: string; // Stored as 'YYYY-MM-DD'
   summary: string;
-  sentiment?: Sentiment; // Optional sentiment
 }
 
 // Interface for a key contact at the customer's company.
@@ -65,8 +57,8 @@ export interface Customer {
 
 // Enum for the types of AI suggestions available.
 export enum AISuggestionType {
-    NEXT_STEP = 'Suggest Next Step',
-    SUMMARY = 'Summarize Relationship',
-    DRAFT_EMAIL = 'Draft Follow-up Email',
-    MEETING_BRIEF = 'Generate Pre-Meeting Briefing',
+    NEXT_STEP = 'nextStep',
+    SUMMARY = 'summarize',
+    DRAFT_EMAIL = 'draftEmail',
+    MEETING_BRIEF = 'meetingBrief',
 }
