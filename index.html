@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI CAMS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      :root {
+        --color-background: 248 250 252; /* slate-50 */
+        --color-surface: 255 255 255;    /* white */
+        --color-primary: 59 130 246;     /* blue-500 */
+        --color-secondary: 241 245 249; /* slate-100 */
+        --color-text-primary: 15 23 42;      /* slate-900 */
+        --color-text-secondary: 71 85 105;  /* slate-600 */
+        --color-border: 226 232 240; /* slate-200 */
+      }
+      html.dark {
+        --color-background: 15 23 42;      /* slate-900 */
+        --color-surface: 30 41 59;        /* slate-800 */
+        --color-primary: 96 165 250;     /* blue-400 */
+        --color-secondary: 51 65 85;      /* slate-700 */
+        --color-text-primary: 241 245 249;  /* slate-100 */
+        --color-text-secondary: 148 163 184; /* slate-400 */
+        --color-border: 51 65 85; /* slate-700 */
+      }
+    </style>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              'background': 'rgb(var(--color-background) / <alpha-value>)',
+              'surface': 'rgb(var(--color-surface) / <alpha-value>)',
+              'primary': 'rgb(var(--color-primary) / <alpha-value>)',
+              'secondary': 'rgb(var(--color-secondary) / <alpha-value>)',
+              'text-primary': 'rgb(var(--color-text-primary) / <alpha-value>)',
+              'text-secondary': 'rgb(var(--color-text-secondary) / <alpha-value>)',
+              'border': 'rgb(var(--color-border) / <alpha-value>)',
+            }
+          }
+        }
+      }
+    </script>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.23.0",
+    "react-dom": "https://aistudiocdn.com/react-dom@^19.2.0"
+  }
+}
+</script>
+</head>
+  <body class="bg-background text-text-primary transition-colors duration-300">
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
