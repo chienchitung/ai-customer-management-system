@@ -22,6 +22,7 @@ interface CustomerDashboardProps {
   onSelectCustomer: (id: string) => void;
   onAddInteraction: (customerId: string, interaction: Omit<Interaction, 'id'>) => void;
   onUpdateCustomer: (customerId: string, updatedData: Partial<Omit<Customer, 'id'>>) => void;
+  onMoveCustomer: (draggedId: string, newStatus: CustomerStatus, newIndex: number) => void;
   onOpenAddCustomerModal: () => void;
   onEditCustomer: (customer: Customer) => void;
   language: 'en' | 'zh';
@@ -30,7 +31,11 @@ interface CustomerDashboardProps {
 
 const CustomerDashboard: React.FC<CustomerDashboardProps> = (props) => {
   if (props.viewMode === 'kanban') {
-    return <KanbanBoard customers={props.customers} onUpdateCustomer={props.onUpdateCustomer} language={props.language} />;
+    return <KanbanBoard 
+      customers={props.customers} 
+      onMoveCustomer={props.onMoveCustomer}
+      language={props.language} 
+    />;
   }
   return <ListView {...props} />;
 };
@@ -238,8 +243,8 @@ const WelcomeScreen: React.FC<{ onOpenAddCustomerModal: () => void, language: 'e
 
 const CustomerDetails: React.FC<{
   customer: Customer;
-  onAddInteraction: CustomerDashboardProps['onAddInteraction'];
-  onUpdateCustomer: CustomerDashboardProps['onUpdateCustomer'];
+  onAddInteraction: (customerId: string, interaction: Omit<Interaction, 'id'>) => void;
+  onUpdateCustomer: (customerId: string, updatedData: Partial<Omit<Customer, 'id'>>) => void;
   onEditCustomer: () => void;
   language: 'en' | 'zh';
 }> = ({ customer, onAddInteraction, onUpdateCustomer, onEditCustomer, language }) => {
@@ -447,7 +452,7 @@ const CustomerProfileCard: React.FC<{customer: Customer, language: 'en' | 'zh'}>
 
 const InteractionLogger: React.FC<{ 
     customerId: string; 
-    onAddInteraction: CustomerDashboardProps['onAddInteraction'];
+    onAddInteraction: (customerId: string, interaction: Omit<Interaction, 'id'>) => void;
     language: 'en' | 'zh'; 
 }> = ({ customerId, onAddInteraction, language }) => {
   const [summary, setSummary] = React.useState('');

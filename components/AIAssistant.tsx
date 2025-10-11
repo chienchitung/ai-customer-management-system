@@ -124,7 +124,11 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ customer, language }) => {
              
              <div className={`p-3 rounded-lg max-w-sm ${msg.sender === 'ai' ? 'bg-secondary text-text-primary' : 'bg-primary text-white'}`}>
                 {msg.id.startsWith('ai_') && msg.content === '...' 
-                    ? <div className="flex items-center justify-center p-2"><div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div></div>
+                    ? <div className="loading-dots flex items-center justify-center space-x-1 p-2">
+                        <div className="w-2 h-2 bg-primary rounded-full dot-1"></div>
+                        <div className="w-2 h-2 bg-primary rounded-full dot-2"></div>
+                        <div className="w-2 h-2 bg-primary rounded-full"></div>
+                      </div>
                     : <MarkdownRenderer content={msg.content} />
                 }
                 

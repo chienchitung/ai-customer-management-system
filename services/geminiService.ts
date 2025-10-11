@@ -6,14 +6,15 @@ import { Customer, Interaction } from '../types';
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
 
 const MAX_RETRIES = 3;
-const INITIAL_BACKOFF_MS = 1000;
+// Increased initial backoff time to better handle stricter rate limits.
+const INITIAL_BACKOFF_MS = 2000;
 
 // A utility function to introduce a delay.
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
  * A private function that wraps the Gemini API call with a retry mechanism.
- * It handles 429 "Resource Exhausted" errors by waiting and retrying with exponential backoff.
+ * It handles 429 "Resource Exhausted" errors by waiting and retrying with exponential backoff and jitter.
  * @param prompt The prompt string to send to the model.
  * @returns A promise that resolves to the generated text content.
  * @throws An error if the API call fails after all retries or for non-rate-limit reasons.
@@ -31,16 +32,25 @@ const generateContentWithRetry = async (prompt: string): Promise<string> => {
       return response.text.trim();
     } catch (error: any) {
       // Check if the error is a rate limit error.
-      const isRateLimitError = error.toString().includes('429') || error.toString().includes('RESOURCE_EXHAUSTED');
+      const errorMessage = (error.message || error.toString()).toLowerCase();
+      const isRateLimitError = errorMessage.includes('429') || 
+                               errorMessage.includes('resource_exhausted') ||
+                               errorMessage.includes('quota');
       
       if (isRateLimitError && attempt < MAX_RETRIES - 1) {
-        console.warn(`Rate limit exceeded. Retrying in ${backoff}ms... (Attempt ${attempt + 1}/${MAX_RETRIES})`);
+        console.warn(`Rate limit exceeded. Retrying in ${Math.round(backoff / 1000)}s... (Attempt ${attempt + 1}/${MAX_RETRIES})`);
         await delay(backoff);
         attempt++;
-        backoff *= 2; // Exponentially increase the backoff time for the next attempt.
+        // Exponentially increase backoff and add jitter to prevent thundering herd issues.
+        backoff = backoff * 2 + Math.random() * 1000;
       } else {
         // If it's not a rate limit error or we've exhausted all retries, throw the error.
         console.error(`API call failed on attempt ${attempt + 1}.`, error);
+        
+        // Propagate a more specific error for rate limiting issues.
+        if (isRateLimitError) {
+             throw new Error("The AI service is temporarily busy due to high demand. Please try again in a few moments.");
+        }
         throw error;
       }
     }
@@ -92,6 +102,23 @@ const createPrompt = (customer: Customer, task: string, language: 'en' | 'zh'): 
   `;
 };
 
+// Helper to handle API call errors and return appropriate translated messages.
+const handleApiError = (error: any, language: 'en' | 'zh', contextForLogging: string): string => {
+    console.error(`Error ${contextForLogging} after retries:`, error);
+    
+    // Specific rate limit error message
+    if (error.message?.includes("The AI service is temporarily busy")) {
+        return language === 'zh' 
+            ? 'AI 服務暫時因需求量大而忙碌。請稍後再試。' 
+            : error.message;
+    }
+    
+    // Generic error message
+    return language === 'zh'
+        ? '獲取 AI 回應時發生錯誤。請檢查主控台以獲取詳細資訊。'
+        : `An error occurred while fetching the AI response. Please check the console for details.`;
+};
+
 /**
  * Generates a suggestion for the next follow-up action for a given customer.
  * @param customer The customer to get a suggestion for.
@@ -104,8 +131,7 @@ export const getFollowUpSuggestion = async (customer: Customer, language: 'en' |
   try {
     return await generateContentWithRetry(prompt);
   } catch (error) {
-    console.error('Error generating follow-up suggestion after retries:', error);
-    return 'An error occurred while fetching AI suggestion. Please check the console for details.';
+    return handleApiError(error, language, 'generating follow-up suggestion');
   }
 };
 
@@ -121,8 +147,7 @@ export const summarizeInteractions = async (customer: Customer, language: 'en' |
   try {
     return await generateContentWithRetry(prompt);
   } catch (error) {
-    console.error('Error summarizing interactions after retries:', error);
-    return 'An error occurred while fetching AI summary. Please check the console for details.';
+    return handleApiError(error, language, 'summarizing interactions');
   }
 };
 
@@ -149,8 +174,7 @@ export const draftFollowUpEmail = async (customer: Customer, language: 'en' | 'z
     try {
       return await generateContentWithRetry(prompt);
     } catch (error) {
-      console.error('Error drafting email after retries:', error);
-      return 'An error occurred while drafting the email.';
+      return handleApiError(error, language, 'drafting email');
     }
 };
 
@@ -173,8 +197,7 @@ Keep the briefing concise and easy to scan in 5 minutes. Use Markdown for format
     try {
       return await generateContentWithRetry(prompt);
     } catch (error) {
-      console.error('Error generating briefing after retries:', error);
-      return 'An error occurred while generating the briefing.';
+      return handleApiError(error, language, 'generating briefing');
     }
 };
 
@@ -197,7 +220,6 @@ export const getProactiveSummary = async (customer: Customer, language: 'en' | '
   try {
     return await generateContentWithRetry(prompt);
   } catch (error) {
-    console.error('Error generating proactive summary after retries:', error);
-    return 'An error occurred while fetching AI summary.';
+    return handleApiError(error, language, 'generating proactive summary');
   }
 };

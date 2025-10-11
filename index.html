@@ -32,6 +32,23 @@
       .animate-fade-in {
           animation: fadeIn 0.4s ease-out forwards;
       }
+      @keyframes bounce-dot {
+        0%, 80%, 100% {
+          transform: scale(0);
+        }
+        40% {
+          transform: scale(1.0);
+        }
+      }
+      .loading-dots > div {
+        animation: bounce-dot 1.4s infinite ease-in-out both;
+      }
+      .loading-dots .dot-1 {
+        animation-delay: -0.32s;
+      }
+      .loading-dots .dot-2 {
+        animation-delay: -0.16s;
+      }
     </style>
     <script>
       tailwind.config = {
