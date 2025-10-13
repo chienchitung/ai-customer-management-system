@@ -141,6 +141,8 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ customer, language }) => {
       <div className="flex-grow overflow-y-auto p-4 space-y-6">
         {messages.map((msg, index) => {
           const isLastMessage = index === messages.length - 1;
+          const useTypewriter = msg.role === 'model' && isLastMessage && !isLoading && messages.length > 1;
+
           return (
             <div key={msg.id} className={`flex items-end gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               {msg.role === 'model' && (
@@ -149,7 +151,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ customer, language }) => {
                 </div>
               )}
               <div className={`px-4 py-3 rounded-2xl max-w-[85%] ${msg.role === 'user' ? 'bg-primary text-white rounded-br-lg' : 'bg-secondary text-text-primary rounded-bl-lg'}`}>
-                 {msg.role === 'model' && isLastMessage && !isLoading ? (
+                 {useTypewriter ? (
                   <TypewriterMessage text={msg.text} scrollRef={messagesEndRef} />
                 ) : (
                   <MarkdownRenderer content={msg.text} />

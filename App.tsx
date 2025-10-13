@@ -272,7 +272,7 @@ const App: React.FC = () => {
 
 
   return (
-    <div className="min-h-screen bg-background font-sans flex flex-col">
+    <div className="h-screen bg-background font-sans flex flex-col overflow-hidden">
       <header className="bg-surface/80 backdrop-blur-md border-b border-border p-4 flex justify-between items-center sticky top-0 z-20">
         <div className="flex items-center gap-4">
             <h1 className="text-xl font-bold text-text-primary whitespace-nowrap">AI Customer Management System</h1>
@@ -357,7 +357,7 @@ const App: React.FC = () => {
         </div>
       </header>
       
-      <main className="p-4 md:p-6 flex-grow">
+      <main className="p-4 md:p-6 flex-grow min-h-0">
         <div key={animationKey} className="animate-fade-in h-full">
             {mainView === 'management' ? (
                 <CustomerDashboard
