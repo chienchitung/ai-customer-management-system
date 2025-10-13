@@ -34,7 +34,11 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = (props) => {
     return <KanbanBoard 
       customers={props.customers} 
       onMoveCustomer={props.onMoveCustomer}
-      language={props.language} 
+      language={props.language}
+      onEditCustomer={props.onEditCustomer}
+      onOpenAddCustomerModal={props.onOpenAddCustomerModal}
+      selectedCustomerId={props.selectedCustomer?.id || null}
+      onSelectCustomer={props.onSelectCustomer}
     />;
   }
   return <ListView {...props} />;

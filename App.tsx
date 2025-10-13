@@ -116,16 +116,6 @@ type MainView = 'management' | 'dashboard';
 type Language = 'en' | 'zh';
 type Theme = 'light' | 'dark';
 
-// Helper function to find the last index of an element in an array.
-function findLastIndex<T>(array: T[], predicate: (value: T, index: number, obj: T[]) => boolean): number {
-    for (let i = array.length - 1; i >= 0; i--) {
-        if (predicate(array[i], i, array)) {
-            return i;
-        }
-    }
-    return -1;
-}
-
 /**
  * Main application component.
  * Manages the entire application state including customers, selected customer, and current view.
@@ -218,54 +208,44 @@ const App: React.FC = () => {
   const handleMoveCustomer = (draggedId: string, newStatus: CustomerStatus, newIndexInColumn: number) => {
     setCustomers(currentCustomers => {
         const draggedCustomer = currentCustomers.find(c => c.id === draggedId);
-        if (!draggedCustomer) return currentCustomers;
-
-        const filteredCustomers = currentCustomers.filter(c => c.id !== draggedId);
-        const targetColumn = filteredCustomers.filter(c => c.status === newStatus);
-        
-        const customerBeforeDrop = targetColumn[newIndexInColumn];
-        const overId = customerBeforeDrop ? customerBeforeDrop.id : null;
-        
-        let insertionIndex;
-        if (overId) {
-            insertionIndex = filteredCustomers.findIndex(c => c.id === overId);
-        } else {
-            const lastInColumn = targetColumn.length > 0 ? targetColumn[targetColumn.length - 1] : null;
-            if (lastInColumn) {
-                insertionIndex = filteredCustomers.findIndex(c => c.id === lastInColumn.id) + 1;
-            } else {
-                const columnOrder = Object.values(CustomerStatus);
-                const targetColumnOrderIndex = columnOrder.indexOf(newStatus);
-                
-                for (let i = targetColumnOrderIndex - 1; i >= 0; i--) {
-                    const status = columnOrder[i];
-                    const lastIndex = findLastIndex(filteredCustomers, c => c.status === status);
-                    if (lastIndex !== -1) {
-                        insertionIndex = lastIndex + 1;
-                        break;
-                    }
-                }
-
-                if (insertionIndex === undefined) {
-                    for (let i = targetColumnOrderIndex + 1; i < columnOrder.length; i++) {
-                        const status = columnOrder[i];
-                        const firstIndex = filteredCustomers.findIndex(c => c.status === status);
-                        if (firstIndex !== -1) {
-                            insertionIndex = firstIndex;
-                            break;
-                        }
-                    }
-                }
-                
-                if (insertionIndex === undefined) {
-                    insertionIndex = filteredCustomers.length;
-                }
-            }
+        if (!draggedCustomer) {
+            return currentCustomers;
         }
 
-        const newCustomers = [...filteredCustomers];
-        newCustomers.splice(insertionIndex, 0, { ...draggedCustomer, status: newStatus });
+        // Create a new list without the dragged customer.
+        const customersWithoutDragged = currentCustomers.filter(c => c.id !== draggedId);
         
+        // Find all customers that are currently in the target column (from the list without the dragged item).
+        const targetColumnCustomers = customersWithoutDragged.filter(c => c.status === newStatus);
+
+        // Find the customer we are inserting before.
+        const insertBeforeCustomer = targetColumnCustomers[newIndexInColumn];
+
+        // Update the status of the dragged customer.
+        const updatedDraggedCustomer = { ...draggedCustomer, status: newStatus };
+
+        let insertionIndex;
+
+        if (insertBeforeCustomer) {
+            // If we are dropping on top of another customer, find its global index in the list
+            // (without the dragged customer) and insert before it.
+            insertionIndex = customersWithoutDragged.findIndex(c => c.id === insertBeforeCustomer.id);
+        } else {
+            // If we are dropping at the end of a column or into an empty one.
+            if (targetColumnCustomers.length > 0) {
+                // Find the last customer in the target column and insert after it.
+                const lastCustomerInColumn = targetColumnCustomers[targetColumnCustomers.length - 1];
+                insertionIndex = customersWithoutDragged.findIndex(c => c.id === lastCustomerInColumn.id) + 1;
+            } else {
+                // If the target column is empty, we can simply append the customer.
+                // This is safe and will work for the Kanban view.
+                insertionIndex = customersWithoutDragged.length;
+            }
+        }
+        
+        const newCustomers = [...customersWithoutDragged];
+        newCustomers.splice(insertionIndex, 0, updatedDraggedCustomer);
+
         return newCustomers;
     });
   };
