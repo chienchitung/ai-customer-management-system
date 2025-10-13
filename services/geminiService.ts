@@ -12,6 +12,12 @@ const INITIAL_BACKOFF_MS = 2000;
 // A utility function to introduce a delay.
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+// Represents a message in the chat, used for building the prompt history.
+interface ChatMessage {
+    role: 'user' | 'model';
+    text: string;
+}
+
 /**
  * A private function that wraps the Gemini API call with a retry mechanism.
  * It handles 429 "Resource Exhausted" errors by waiting and retrying with exponential backoff and jitter.
@@ -100,6 +106,50 @@ const createPrompt = (customer: Customer, task: string, language: 'en' | 'zh'): 
     Provide a concise, professional, and helpful response.
     ${languageInstruction}
   `;
+};
+
+/**
+ * Creates a detailed prompt for a conversational chat with the AI.
+ * @param customer The customer object.
+ * @param history The history of the current chat conversation.
+ * @param newMessage The new message from the user.
+ * @param language The target language for the AI's response.
+ * @returns A formatted string prompt for the chat context.
+ */
+const createChatPrompt = (customer: Customer, history: ChatMessage[], newMessage: string, language: 'en' | 'zh'): string => {
+    const interactionHistory = customer.interactions
+        .map(i => `- On ${i.date} (${i.type}): ${i.summary}`)
+        .join('\n');
+
+    const customerDetails = [
+        `Name: ${customer.name}`,
+        `Company: ${customer.company}`,
+        `Current Status: ${customer.status}`,
+        customer.dealValue ? `Estimated Deal Value: $${customer.dealValue.toLocaleString()}` : null,
+    ].filter(Boolean).map(line => `  - ${line}`).join('\n');
+
+    const formattedHistory = history
+        .map(msg => `${msg.role === 'user' ? 'User' : 'AI'}: ${msg.text}`)
+        .join('\n');
+
+    const languageInstruction = `IMPORTANT: Your entire response must be in ${language === 'zh' ? 'Traditional Chinese (繁體中文)' : 'English'}.`;
+
+    return `You are an expert B2B sales assistant AI. Your task is to analyze customer data and the ongoing conversation to provide helpful insights to a sales representative.
+
+**Customer Profile for Context:**
+${customerDetails}
+
+**Full Interaction History with this Customer:**
+${interactionHistory || 'No interactions logged yet.'}
+---
+**Current Conversation with Sales Rep:**
+${formattedHistory}
+User: ${newMessage}
+
+**Your Task:**
+Respond to the user's last message ("${newMessage}") by providing a concise, professional, and helpful answer based on all the information provided. Use Markdown for formatting if it improves readability (e.g., lists, bold text).
+${languageInstruction}
+`;
 };
 
 // Helper to handle API call errors and return appropriate translated messages.
@@ -197,7 +247,27 @@ Keep the briefing concise and easy to scan in 5 minutes. Use Markdown for format
     try {
       return await generateContentWithRetry(prompt);
     } catch (error) {
+      // FIX: Corrected the syntax of the catch block.
       return handleApiError(error, language, 'generating briefing');
+    }
+};
+
+/**
+ * Generates a conversational response from the AI based on chat history.
+ * @param customer The customer context for the conversation.
+ * @param history The history of the current chat.
+ * @param newMessage The latest message from the user.
+ * @param language The target language for the AI's response.
+ * @returns A promise that resolves to the AI-generated chat response.
+ */
+export const getChatResponse = async (customer: Customer, history: ChatMessage[], newMessage: string, language: 'en' | 'zh'): Promise<string> => {
+    // Exclude the initial welcome message from history sent to the model, as it's just UI context.
+    const filteredHistory = history.filter((_, index) => index > 0);
+    const prompt = createChatPrompt(customer, filteredHistory, newMessage, language);
+    try {
+        return await generateContentWithRetry(prompt);
+    } catch (error) {
+        return handleApiError(error, language, 'generating chat response');
     }
 };
 

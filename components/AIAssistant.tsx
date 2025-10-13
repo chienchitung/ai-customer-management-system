@@ -1,12 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { Customer, AISuggestionType } from '../types';
-import { 
-    getFollowUpSuggestion, 
-    summarizeInteractions, 
-    draftFollowUpEmail, 
-    generateMeetingBriefing, 
-} from '../services/geminiService';
-import { ChatbotIcon, UserIcon, ClipboardIcon, CheckIcon } from './icons';
+import { getChatResponse } from '../services/geminiService';
+import { ChatbotIcon, UserIcon, SendIcon } from './icons';
 import { t } from '../localization';
 
 interface AIAssistantProps {
@@ -15,94 +10,124 @@ interface AIAssistantProps {
 }
 
 // Represents a single message in the chat conversation.
-type Message = {
-    id: string;
-    sender: 'user' | 'ai';
-    content: string; // The main text content of the message.
-    actionType?: AISuggestionType; // The type of AI action that generated this message.
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'model';
+  text: string;
+}
+
+// A component to render the AI's response with a typewriter effect.
+const TypewriterMessage: React.FC<{ text: string; scrollRef: React.RefObject<HTMLDivElement> }> = ({ text, scrollRef }) => {
+  const [displayedText, setDisplayedText] = useState('');
+
+  useEffect(() => {
+    setDisplayedText(''); // Reset when a new message comes in
+    if (text) {
+      let i = 0;
+      const intervalId = setInterval(() => {
+        if (i < text.length) {
+          setDisplayedText(prev => prev + text.charAt(i));
+          i++;
+        } else {
+          clearInterval(intervalId);
+        }
+      }, 15); // Typing speed
+
+      return () => clearInterval(intervalId);
+    }
+  }, [text]);
+
+  // Scroll to the bottom as new text is being typed
+  useEffect(() => {
+    scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [displayedText, scrollRef]);
+
+  return <MarkdownRenderer content={displayedText} />;
 };
 
-// Custom hook to handle the "Copy to Clipboard" functionality.
-const useCopyToClipboard = (language: 'en' | 'zh') => {
-    const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
-
-    const handleCopy = (text: string, messageId: string) => {
-        navigator.clipboard.writeText(text);
-        setCopiedMessageId(messageId);
-        setTimeout(() => setCopiedMessageId(null), 2000); // Reset after 2 seconds
-    };
-
-    return { copiedMessageId, handleCopy };
-};
 
 const AIAssistant: React.FC<AIAssistantProps> = ({ customer, language }) => {
-  const [conversation, setConversation] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const { copiedMessageId, handleCopy } = useCopyToClipboard(language);
-  const conversationEndRef = useRef<HTMLDivElement>(null);
+  const [input, setInput] = useState('');
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Automatically scroll to the latest message.
-  useEffect(() => {
-    conversationEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [conversation]);
-  
-  // When the customer changes, reset the conversation with a dynamic, conversational welcome message.
+  // When the customer changes, reset the conversation with a welcome message.
   useEffect(() => {
     const welcomeMessage = language === 'zh'
-      ? `您好！我是您的 AI 助理，隨時準備協助您處理與 ${customer.name} 的事務。需要準備會議、草擬郵件，或找出最佳的下一步嗎？只要從下方選擇一個選項，我就會馬上處理。`
-      : `Hello! I'm your AI assistant, ready to help you with ${customer.name}. Need to prep for a meeting, draft an email, or figure out the next best step? Just pick an option below and I'll get right on it.`;
+      ? `您好！我是您的 AI 助理，隨時準備協助您處理與 ${customer.name} 的事務。您可以直接提問，或使用下方的快速按鈕。`
+      : `Hello! I'm your AI assistant, ready to help with ${customer.name}. Feel free to ask any questions or use the quick actions below.`;
 
-    setConversation([{
+    setMessages([{
         id: `ai_${Date.now()}`,
-        sender: 'ai',
-        content: welcomeMessage,
+        role: 'model',
+        text: welcomeMessage,
     }]);
   }, [customer, language]);
 
-  const handleActionClick = async (actionType: AISuggestionType) => {
-    setIsLoading(true);
-    
-    // Add user's action and a loading state for the AI response to the conversation.
-    const userMessageId = `user_${Date.now()}`;
-    const aiMessageId = `ai_${Date.now() + 1}`;
-    const actionText = t(`aiSuggestions.${actionType}`, language);
+  // Auto-grow textarea height based on content.
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto'; // Reset height to allow shrinking
+      const scrollHeight = textarea.scrollHeight;
+      const maxHeight = 120; // Max height in pixels
+      textarea.style.height = `${Math.min(scrollHeight, maxHeight)}px`;
+    }
+  }, [input]);
 
-    setConversation(prev => [
-        ...prev,
-        { id: userMessageId, sender: 'user', content: actionText },
-        { id: aiMessageId, sender: 'ai', content: '...' }
-    ]);
+  const handleSendMessage = async (messageText: string) => {
+    if (!messageText.trim() || isLoading) return;
+
+    const newUserMessage: ChatMessage = {
+      id: `user_${Date.now()}`,
+      role: 'user',
+      text: messageText,
+    };
+    
+    // Add user message and a temporary loading message for the AI
+    setMessages(prev => [...prev, newUserMessage]);
+    setIsLoading(true);
 
     try {
-        let result = '';
-        const aiFunctions = {
-            [AISuggestionType.NEXT_STEP]: getFollowUpSuggestion,
-            [AISuggestionType.SUMMARY]: summarizeInteractions,
-            [AISuggestionType.DRAFT_EMAIL]: draftFollowUpEmail,
-            [AISuggestionType.MEETING_BRIEF]: generateMeetingBriefing,
+        const responseText = await getChatResponse(customer, messages, messageText, language);
+        const newAiMessage: ChatMessage = {
+            id: `ai_${Date.now()}`,
+            role: 'model',
+            text: responseText,
         };
-        result = await aiFunctions[actionType](customer, language);
-
-        // Update the AI's message with the actual result.
-        setConversation(prev => prev.map(msg => 
-            msg.id === aiMessageId ? { ...msg, content: result, actionType } : msg
-        ));
+        setMessages(prev => [...prev, newAiMessage]);
     } catch (error) {
-        console.error('Error getting AI suggestion:', error);
-        setConversation(prev => prev.map(msg => 
-            msg.id === aiMessageId ? { ...msg, content: 'An error occurred. Please try again.' } : msg
-        ));
+        console.error("Failed to get chat response:", error);
+        const errorAiMessage: ChatMessage = {
+            id: `ai_${Date.now()}`,
+            role: 'model',
+            text: "Sorry, I encountered an error. Please try again.",
+        };
+        setMessages(prev => [...prev, errorAiMessage]);
     } finally {
         setIsLoading(false);
     }
   };
-  
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    handleSendMessage(input);
+    setInput('');
+  };
+
+  // Automatically scroll to the latest message.
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, isLoading]);
+
   const actionButtons = Object.values(AISuggestionType);
 
   return (
-    <div className="bg-surface p-4 rounded-lg border border-border sticky top-24 flex flex-col h-[calc(100vh-120px)]">
+    <div className="bg-surface rounded-lg border border-border flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-3 flex-shrink-0">
+      <div className="flex items-center gap-3 p-4 border-b border-border flex-shrink-0">
         <div className="bg-primary/10 p-2 rounded-full">
             <ChatbotIcon className="w-6 h-6 text-primary" />
         </div>
@@ -113,51 +138,55 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ customer, language }) => {
       </div>
       
       {/* Conversation History */}
-      <div className="flex-grow overflow-y-auto pr-2 -mr-2 space-y-4 mb-4">
-        {conversation.map(msg => (
-          <div key={msg.id} className={`flex items-start gap-3 ${msg.sender === 'user' ? 'justify-end' : ''}`}>
-             {msg.sender === 'ai' && (
+      <div className="flex-grow overflow-y-auto p-4 space-y-6">
+        {messages.map((msg, index) => {
+          const isLastMessage = index === messages.length - 1;
+          return (
+            <div key={msg.id} className={`flex items-end gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              {msg.role === 'model' && (
                 <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center flex-shrink-0">
                     <ChatbotIcon className="w-5 h-5 text-primary" />
                 </div>
-             )}
-             
-             <div className={`p-3 rounded-lg max-w-sm ${msg.sender === 'ai' ? 'bg-secondary text-text-primary' : 'bg-primary text-white'}`}>
-                {msg.id.startsWith('ai_') && msg.content === '...' 
-                    ? <div className="loading-dots flex items-center justify-center space-x-1 p-2">
-                        <div className="w-2 h-2 bg-primary rounded-full dot-1"></div>
-                        <div className="w-2 h-2 bg-primary rounded-full dot-2"></div>
-                        <div className="w-2 h-2 bg-primary rounded-full"></div>
-                      </div>
-                    : <MarkdownRenderer content={msg.content} />
-                }
-                
-                {msg.sender === 'ai' && msg.content !== '...' && msg.actionType && (
-                    <button onClick={() => handleCopy(msg.content, msg.id)} className="mt-2 flex items-center gap-1.5 text-xs text-text-secondary hover:text-text-primary transition">
-                        {copiedMessageId === msg.id ? <CheckIcon className="w-3 h-3 text-green-500" /> : <ClipboardIcon className="w-3 h-3" />}
-                        {copiedMessageId === msg.id ? t('copied', language) : t('copyToClipboard', language)}
-                    </button>
+              )}
+              <div className={`px-4 py-3 rounded-2xl max-w-[85%] ${msg.role === 'user' ? 'bg-primary text-white rounded-br-lg' : 'bg-secondary text-text-primary rounded-bl-lg'}`}>
+                 {msg.role === 'model' && isLastMessage && !isLoading ? (
+                  <TypewriterMessage text={msg.text} scrollRef={messagesEndRef} />
+                ) : (
+                  <MarkdownRenderer content={msg.text} />
                 )}
-             </div>
-
-             {msg.sender === 'user' && (
-                <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center flex-shrink-0">
-                    <UserIcon className="w-5 h-5 text-text-secondary" />
+              </div>
+               {msg.role === 'user' && (
+                <div className="w-8 h-8 rounded-full bg-blue-200 dark:bg-slate-600 flex items-center justify-center flex-shrink-0">
+                    <UserIcon className="w-5 h-5 text-blue-600 dark:text-blue-300" />
                 </div>
              )}
-          </div>
-        ))}
-        <div ref={conversationEndRef} />
+            </div>
+          )
+        })}
+        {isLoading && (
+            <div className="flex items-end gap-3 justify-start">
+                <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center flex-shrink-0">
+                    <ChatbotIcon className="w-5 h-5 text-primary" />
+                </div>
+                <div className="px-4 py-3 rounded-2xl bg-secondary flex items-center justify-center space-x-1.5 h-[44px] rounded-bl-lg">
+                    <div className="loading-dots flex items-center justify-center space-x-1 p-2">
+                        <div className="w-2 h-2 bg-text-secondary rounded-full dot-1"></div>
+                        <div className="w-2 h-2 bg-text-secondary rounded-full dot-2"></div>
+                        <div className="w-2 h-2 bg-text-secondary rounded-full"></div>
+                    </div>
+                </div>
+            </div>
+        )}
+        <div ref={messagesEndRef} />
       </div>
 
-      {/* Action Buttons */}
-      <div className="flex-shrink-0 pt-2 border-t border-border">
-         <p className="text-sm font-semibold text-text-secondary mb-2">{t('suggestionType', language)}</p>
-         <div className="grid grid-cols-2 gap-2">
+      {/* Action Buttons & Input Form */}
+      <div className="p-4 bg-surface border-t border-border flex-shrink-0">
+         <div className="grid grid-cols-2 gap-2 mb-3">
             {actionButtons.map(type => (
                 <button
                     key={type}
-                    onClick={() => handleActionClick(type)}
+                    onClick={() => handleSendMessage(t(`aiSuggestions.${type}`, language))}
                     disabled={isLoading}
                     className="p-2 text-sm text-center font-medium bg-secondary rounded-md hover:bg-border dark:hover:bg-slate-600 transition disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
                 >
@@ -165,6 +194,27 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ customer, language }) => {
                 </button>
             ))}
          </div>
+        <form onSubmit={handleSubmit} className="flex items-end gap-3">
+          <textarea
+            ref={textareaRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSubmit(e);
+                }
+            }}
+            placeholder="Ask a question..."
+            className="w-full px-4 py-2.5 bg-secondary border border-transparent focus:border-primary rounded-xl focus:outline-none focus:ring-1 focus:ring-primary text-text-primary resize-none transition-colors"
+            rows={1}
+            style={{ minHeight: '44px' }}
+            disabled={isLoading}
+          />
+          <button type="submit" disabled={isLoading || !input.trim()} className="w-11 h-11 flex-shrink-0 bg-primary text-white rounded-full flex items-center justify-center disabled:bg-primary/50 disabled:cursor-not-allowed transition-colors active:scale-95">
+            <SendIcon className="w-5 h-5" />
+          </button>
+        </form>
       </div>
     </div>
   );
@@ -179,7 +229,6 @@ const MarkdownRenderer: React.FC<{ content: string }> = ({ content }) => {
                 if (line.startsWith('* ') || line.startsWith('- ')) {
                     return <p key={index} className="pl-4 relative"><span className="absolute left-0 top-0.5">•</span>{line.substring(2)}</p>;
                 }
-                // Using a regex to find and replace **text** with <strong>text</strong>
                 const parts = line.split(/(\*\*.*?\*\*)/g);
                 return (
                     <p key={index}>
@@ -196,6 +245,5 @@ const MarkdownRenderer: React.FC<{ content: string }> = ({ content }) => {
         </div>
     );
 };
-
 
 export default AIAssistant;

@@ -190,10 +190,10 @@ const ListView: React.FC<CustomerDashboardProps> = ({
 
             <div className="md:col-span-3 lg:col-span-4">
                 {selectedCustomer ? (
-                <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 h-full">
+                <div className="flex gap-6 h-full">
                     <div
                         key={`${selectedCustomer.id}-${language}`}
-                        className={`space-y-6 overflow-y-auto pr-2 transition-all duration-300 ${isAIAssistantOpen ? 'xl:col-span-2' : 'xl:col-span-3'}`}
+                        className="flex-auto space-y-6 overflow-y-auto pr-2 min-w-0"
                     >
                         <CustomerDetails
                             customer={selectedCustomer}
@@ -203,11 +203,14 @@ const ListView: React.FC<CustomerDashboardProps> = ({
                             language={language}
                         />
                     </div>
-                    {isAIAssistantOpen && (
-                        <div className="xl:col-span-1">
+                    <aside
+                        className={`flex-shrink-0 transition-all duration-300 ease-in-out ${isAIAssistantOpen ? 'w-96' : 'w-0 opacity-0 pointer-events-none'}`}
+                        aria-hidden={!isAIAssistantOpen}
+                    >
+                        <div className="h-full overflow-hidden">
                             <AIAssistant customer={selectedCustomer} language={language} />
                         </div>
-                    )}
+                    </aside>
                 </div>
                 ) : (
                 <div className="flex flex-col items-center justify-center h-full text-text-secondary bg-surface rounded-lg border border-border">
