@@ -275,7 +275,7 @@ const App: React.FC = () => {
     <div className="min-h-screen bg-background font-sans flex flex-col">
       <header className="bg-surface/80 backdrop-blur-md border-b border-border p-4 flex justify-between items-center sticky top-0 z-20">
         <div className="flex items-center gap-4">
-            <h1 className="text-xl font-bold text-text-primary whitespace-nowrap">AI Customer Manager</h1>
+            <h1 className="text-xl font-bold text-text-primary whitespace-nowrap">AI Customer Management System</h1>
             <nav className="flex items-center gap-4">
                 <button
                 onClick={() => setMainView('management')}

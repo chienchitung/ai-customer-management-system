@@ -5,6 +5,7 @@ const translations = {
         management: 'Management',
         dashboard: 'Dashboard',
         searchCustomer: 'Search customer...',
+        allCustomers: 'All Customers',
         buttons: {
             toggleLanguage: 'Toggle Language',
             toggleTheme: 'Toggle Theme',
@@ -45,7 +46,7 @@ const translations = {
         analyzing: 'Analyzing...',
         logInteraction: 'Log Interaction',
         welcome: {
-            title: 'Welcome to AI Customer Manager',
+            title: 'Welcome to AI Customer Management System',
             message: 'Get started by adding your first customer. This dashboard will help you manage relationships, track progress, and get AI-powered insights to close deals faster.',
             cta: 'Add Your First Customer',
         },
@@ -95,6 +96,7 @@ const translations = {
         // AI Assistant
         aiAssistant: 'AI Assistant',
         aiAssistantDescription: 'Get AI-powered insights and suggestions for this customer.',
+        askAQuestion: 'Ask a question...',
         suggestionType: 'What do you need help with?',
         getSuggestion: 'Get Suggestion',
         generating: 'Generating...',
@@ -119,6 +121,7 @@ const translations = {
         management: '客戶管理',
         dashboard: '儀表板',
         searchCustomer: '搜尋客戶...',
+        allCustomers: '所有客戶',
         buttons: {
             toggleLanguage: '切換語言',
             toggleTheme: '切換主題',
@@ -159,7 +162,7 @@ const translations = {
         analyzing: '分析中...',
         logInteraction: '記錄互動',
         welcome: {
-            title: '歡迎使用 AI 客戶管理工具',
+            title: '歡迎使用 AI 客戶管理系統',
             message: '開始新增您的第一位客戶。此儀表板將幫助您管理客戶關係、追蹤進度，並獲得 AI 驅動的洞察以更快地完成交易。',
             cta: '新增您的第一位客戶',
         },
@@ -209,6 +212,7 @@ const translations = {
         // AI Assistant
         aiAssistant: 'AI 助理',
         aiAssistantDescription: '獲取針對此客戶的 AI 洞察和建議。',
+        askAQuestion: '在這裡提問...',
         suggestionType: '您需要什麼幫助？',
         getSuggestion: '獲取建議',
         generating: '生成中...',

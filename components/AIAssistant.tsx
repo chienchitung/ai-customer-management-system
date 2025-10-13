@@ -205,7 +205,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ customer, language }) => {
                     handleSubmit(e);
                 }
             }}
-            placeholder="Ask a question..."
+            placeholder={t('askAQuestion', language)}
             className="w-full px-4 py-2.5 bg-secondary border border-transparent focus:border-primary rounded-xl focus:outline-none focus:ring-1 focus:ring-primary text-text-primary resize-none transition-colors"
             rows={1}
             style={{ minHeight: '44px' }}

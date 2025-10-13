@@ -3,7 +3,7 @@ import { Customer, CustomerStatus, Interaction, InteractionType, KeyContact } fr
 import { t, translateStatus } from '../localization';
 import AIAssistant from './AIAssistant';
 import KanbanBoard from './KanbanBoard';
-import { CalendarIcon, IdentificationIcon, LightBulbIcon, PencilIcon, SearchIcon, FilterIcon } from './icons';
+import { ArrowLeftIcon, CalendarIcon, IdentificationIcon, LightBulbIcon, PencilIcon, SearchIcon, FilterIcon } from './icons';
 
 // Mapping customer statuses to specific Tailwind CSS classes for color-coding.
 export const statusColors: { [key in CustomerStatus]: { text: string; bg: string; border: string; dropdown: string } } = {
@@ -19,7 +19,7 @@ interface CustomerDashboardProps {
   viewMode: 'list' | 'kanban';
   customers: Customer[];
   selectedCustomer: Customer | null;
-  onSelectCustomer: (id: string) => void;
+  onSelectCustomer: (id: string | null) => void;
   onAddInteraction: (customerId: string, interaction: Omit<Interaction, 'id'>) => void;
   onUpdateCustomer: (customerId: string, updatedData: Partial<Omit<Customer, 'id'>>) => void;
   onMoveCustomer: (draggedId: string, newStatus: CustomerStatus, newIndex: number) => void;
@@ -112,8 +112,13 @@ const ListView: React.FC<CustomerDashboardProps> = ({
     }
 
     return (
-         <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 gap-6 h-full">
-            <div className="md:col-span-1 lg:col-span-1 bg-surface rounded-lg border border-border overflow-y-auto flex flex-col">
+         <div className="flex h-full overflow-hidden">
+            {/* Customer List Panel (Sidebar on desktop, full view on mobile) */}
+            <div className={`
+                ${selectedCustomer ? 'hidden md:flex' : 'flex'}
+                w-full md:w-80 lg:w-96 flex-shrink-0
+                flex-col bg-surface rounded-lg border border-border
+            `}>
                 <div className="p-2 sticky top-0 bg-surface z-10 border-b border-border">
                   <div className="flex items-center gap-2">
                     <div className="relative flex-grow">
@@ -165,7 +170,7 @@ const ListView: React.FC<CustomerDashboardProps> = ({
                     </div>
                   )}
                 </div>
-                <ul className="p-2 space-y-1 flex-grow">
+                <ul className="p-2 space-y-1 flex-grow overflow-y-auto">
                 {filteredCustomers.map(customer => (
                     <li
                         key={customer.id}
@@ -188,13 +193,27 @@ const ListView: React.FC<CustomerDashboardProps> = ({
                 </ul>
             </div>
 
-            <div className="md:col-span-3 lg:col-span-4">
+            {/* Main Content (Details + AI) */}
+            <div className={`
+                ${selectedCustomer ? 'flex' : 'hidden md:flex'}
+                flex-grow flex-col md:pl-6 min-w-0
+            `}>
                 {selectedCustomer ? (
-                <div className="flex gap-6 h-full">
+                <div className="flex gap-6 h-full min-w-0">
                     <div
                         key={`${selectedCustomer.id}-${language}`}
                         className="flex-auto space-y-6 overflow-y-auto pr-2 min-w-0"
                     >
+                        {/* Back button for mobile */}
+                        <button
+                            onClick={() => onSelectCustomer(null)}
+                            className="md:hidden flex items-center gap-2 text-sm font-semibold text-text-secondary mb-2 hover:text-text-primary"
+                            aria-label={t('allCustomers', language)}
+                        >
+                            <ArrowLeftIcon className="w-4 h-4" />
+                            <span>{t('allCustomers', language)}</span>
+                        </button>
+
                         <CustomerDetails
                             customer={selectedCustomer}
                             onAddInteraction={onAddInteraction}
@@ -213,7 +232,7 @@ const ListView: React.FC<CustomerDashboardProps> = ({
                     </aside>
                 </div>
                 ) : (
-                <div className="flex flex-col items-center justify-center h-full text-text-secondary bg-surface rounded-lg border border-border">
+                <div className="hidden md:flex flex-col items-center justify-center h-full text-text-secondary bg-surface rounded-lg border border-border">
                     <p className="text-lg">{t('selectCustomerPrompt', language)}</p>
                     <p className="text-sm mt-2">{t('or', language)}</p>
                     <button onClick={onOpenAddCustomerModal} className="mt-4 px-4 py-2 bg-primary text-white text-sm font-semibold rounded-md hover:bg-primary/90 transition active:scale-95">{t('addNewCustomer', language)}</button>
