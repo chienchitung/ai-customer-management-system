@@ -8,6 +8,9 @@ import { ChatbotIcon, UserIcon, SendIcon, ClipboardIcon, CheckIcon, CalendarIcon
 import { t } from '../localization';
 import { todayISO } from '../lib/dates';
 import { aiErrorMessage } from './Dialogs';
+import { useGmail } from '../hooks/useGmail';
+import { SendEmailModal } from './Gmail';
+import { useToast } from './Toast';
 
 type Language = 'en' | 'zh';
 
@@ -68,6 +71,9 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ customer, language, onAddInte
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   // Latest customer data for requests, without resetting the chat when it changes.
+  const gmail = useGmail();
+  const toast = useToast();
+  const [sendDraft, setSendDraft] = useState<{ messageId: string; to: string; subject: string; body: string } | null>(null);
   const customerRef = useRef(customer);
   customerRef.current = customer;
 
@@ -195,7 +201,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ customer, language, onAddInte
             <button
               disabled={m.applied}
               onClick={() => { onSetNextAction(customer.id, { description: m.data.description, dueDate: m.data.dueDate }); patchMessage(m.id, { applied: true } as Partial<ChatMessage>); }}
-              className={`${actionBtn} bg-primary text-white hover:bg-primary/90 disabled:opacity-60 flex items-center gap-1`}
+              className={`${actionBtn} bg-primary text-on-primary hover:bg-primary/90 disabled:opacity-60 flex items-center gap-1`}
             >
               {m.applied && <CheckIcon className="w-3.5 h-3.5" />}{t(m.applied ? 'ai.saved' : 'ai.setNext', language)}
             </button>
@@ -211,17 +217,27 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ customer, language, onAddInte
             <p className="whitespace-pre-wrap bg-surface/60 rounded-md p-2 border border-border">{m.data.body}</p>
             <div className="flex flex-wrap gap-1 -ml-2 text-text-secondary">
               <CopyButton text={full} language={language} />
+{gmail.status.connected ? (
+                <button
+                  disabled={m.logged}
+                  onClick={() => setSendDraft({ messageId: m.id, to: customer.email, subject: m.data.subject, body: m.data.body })}
+                  className={`${actionBtn} bg-primary text-on-primary hover:bg-primary/90 disabled:opacity-60 flex items-center gap-1`}
+                >
+                  {m.logged && <CheckIcon className="w-3.5 h-3.5" />}{t(m.logged ? 'ai.saved' : 'gmail.send', language)}
+                </button>
+              ) : (
               <a
                 href={mailto}
                 onClick={() => {
                   if (m.logged) return;
-                  onAddInteraction(customer.id, { type: InteractionType.EMAIL, date: todayISO(), summary: `${m.data.subject}` });
+                  onAddInteraction(customer.id, { type: InteractionType.EMAIL, date: todayISO(), summary: `${t('gmail.sentPrefix', language)}${m.data.subject}` });
                   patchMessage(m.id, { logged: true } as Partial<ChatMessage>);
                 }}
-                className={`${actionBtn} bg-primary text-white hover:bg-primary/90 flex items-center gap-1`}
+                className={`${actionBtn} bg-primary text-on-primary hover:bg-primary/90 flex items-center gap-1`}
               >
                 {m.logged && <CheckIcon className="w-3.5 h-3.5" />}{t('ai.openEmail', language)}
               </a>
+              )}
             </div>
           </div>
         );
@@ -230,7 +246,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ customer, language, onAddInte
         return (
           <div role="alert" className="text-sm space-y-2">
             <p className="text-rose-600 dark:text-rose-400">{m.text}</p>
-            <button onClick={m.retry} disabled={isLoading} className={`${actionBtn} bg-primary text-white hover:bg-primary/90 disabled:opacity-50`}>{t('ai.retry', language)}</button>
+            <button onClick={m.retry} disabled={isLoading} className={`${actionBtn} bg-primary text-on-primary hover:bg-primary/90 disabled:opacity-50`}>{t('ai.retry', language)}</button>
           </div>
         );
     }
@@ -256,7 +272,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ customer, language, onAddInte
                 <ChatbotIcon className="w-5 h-5 text-primary" />
               </div>
             )}
-            <div className={`px-4 py-3 rounded-2xl max-w-[85%] min-w-0 break-words ${msg.role === 'user' ? 'bg-primary text-white rounded-br-lg' : 'bg-secondary text-text-primary rounded-bl-lg'}`}>
+            <div className={`px-4 py-3 rounded-2xl max-w-[85%] min-w-0 break-words ${msg.role === 'user' ? 'bg-primary text-on-primary rounded-br-lg' : 'bg-secondary text-text-primary rounded-bl-lg'}`}>
               {msg.role === 'user' ? <p className="text-sm whitespace-pre-wrap">{msg.text}</p> : renderModel(msg)}
             </div>
             {msg.role === 'user' && (
@@ -295,7 +311,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ customer, language, onAddInte
             }}
             placeholder={t('askAQuestion', language)}
             aria-label={t('askAQuestion', language)}
-            className="w-full px-4 py-2.5 bg-secondary border border-transparent focus:border-primary rounded-xl focus:outline-none focus:ring-1 focus:ring-primary text-text-primary resize-none transition-colors"
+            className="w-full px-4 py-2.5 bg-secondary border border-transparent focus:border-primary rounded-xl focus:ring-1 focus:ring-primary text-text-primary resize-none transition-colors"
             rows={1}
             style={{ minHeight: '44px' }}
           />
@@ -304,12 +320,24 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ customer, language, onAddInte
               {t('ai.stop', language)}
             </button>
           ) : (
-            <button type="submit" disabled={!input.trim()} aria-label="Send" className="w-11 h-11 flex-shrink-0 bg-primary text-white rounded-full flex items-center justify-center disabled:bg-primary/50 disabled:cursor-not-allowed transition-colors active:scale-95">
+            <button type="submit" disabled={!input.trim()} aria-label="Send" className="w-11 h-11 flex-shrink-0 bg-primary text-on-primary rounded-full flex items-center justify-center disabled:bg-primary/50 disabled:cursor-not-allowed transition-colors active:scale-95">
               <SendIcon className="w-5 h-5" />
             </button>
           )}
         </form>
       </div>
+      <SendEmailModal
+        draft={sendDraft}
+        language={language}
+        onClose={() => setSendDraft(null)}
+        onSent={({ id, subject }) => {
+          if (!sendDraft) return;
+          onAddInteraction(customer.id, { type: InteractionType.EMAIL, date: todayISO(), summary: `${t('gmail.sentPrefix', language)}${subject}`, source: 'gmail', externalId: id });
+          patchMessage(sendDraft.messageId, { logged: true } as Partial<ChatMessage>);
+          setSendDraft(null);
+          toast(t('gmail.sentToast', language));
+        }}
+      />
     </div>
   );
 };

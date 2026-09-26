@@ -30,10 +30,15 @@ create or replace function public.customers_before_write() returns trigger
 language plpgsql set search_path = '' as $$
 begin
   new.updated_at := now();
-  new.next_action_due := case
-    when coalesce(new.next_action ->> 'dueDate', '') ~ '^\d{4}-\d{2}-\d{2}$' then (new.next_action ->> 'dueDate')::date
-    else null
-  end;
+  new.next_action_due := null;
+  if coalesce(new.next_action ->> 'dueDate', '') ~ '^\d{4}-\d{2}-\d{2}$' then
+    begin
+      new.next_action_due := (new.next_action ->> 'dueDate')::date;
+    exception when others then
+      -- An impossible date (e.g. 2026-13-45) must not block saving the customer.
+      new.next_action_due := null;
+    end;
+  end if;
   return new;
 end;
 $$;

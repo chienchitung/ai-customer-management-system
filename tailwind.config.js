@@ -8,6 +8,7 @@ export default {
         background: 'rgb(var(--color-background) / <alpha-value>)',
         surface: 'rgb(var(--color-surface) / <alpha-value>)',
         primary: 'rgb(var(--color-primary) / <alpha-value>)',
+        'on-primary': 'rgb(var(--color-on-primary) / <alpha-value>)',
         secondary: 'rgb(var(--color-secondary) / <alpha-value>)',
         'text-primary': 'rgb(var(--color-text-primary) / <alpha-value>)',
         'text-secondary': 'rgb(var(--color-text-secondary) / <alpha-value>)',

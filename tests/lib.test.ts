@@ -83,3 +83,23 @@ describe('storage', () => {
     expect(csv).toContain('"A, ""B"""');
   });
 });
+
+import { diffCustomers, snapshotOf } from '../lib/sync';
+import { fromRow, toRow } from '../lib/remoteStore';
+
+describe('sync', () => {
+  it('finds changed, new and deleted customers', () => {
+    const a = base({ id: 'a' }); const b = base({ id: 'b' }); const c = base({ id: 'c' });
+    const snap = snapshotOf([a, b]);
+    const { upserts, deletes } = diffCustomers(snap, [{ ...a, name: 'changed' }, c]);
+    expect(upserts.map(x => x.id)).toEqual(['a', 'c']);
+    expect(deletes).toEqual(['b']);
+    expect(diffCustomers(snapshotOf([a]), [a])).toEqual({ upserts: [], deletes: [] });
+  });
+
+  it('round-trips through the database row shape', () => {
+    const c = base({ id: 'r', dealValue: 5, nextAction: { description: 'x', dueDate: TODAY }, keyContacts: [{ id: 'k', name: 'K', title: 'T' }],
+      customerPainPoints: ['p'], competitors: ['c'], closedReason: 'r', statusHistory: [], createdAt: TODAY });
+    expect(fromRow(toRow(c))).toEqual(c);
+  });
+});

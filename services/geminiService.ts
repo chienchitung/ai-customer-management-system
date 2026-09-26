@@ -2,6 +2,7 @@
 const Type = { OBJECT: 'OBJECT', STRING: 'STRING', NUMBER: 'NUMBER', ARRAY: 'ARRAY' } as const;
 import { Customer, CustomerStatus, InteractionType, NextAction } from '../types';
 import { todayISO, addDays } from '../lib/dates';
+import { apiFetch, ApiError } from '../lib/api';
 
 // All AI calls go through the server-side proxy at /api/ai, which holds the Gemini key.
 
@@ -12,7 +13,9 @@ export interface ChatTurn {
   text: string;
 }
 
-export type AIErrorCode = 'rate_limited' | 'missing_api_key' | 'network' | 'upstream_error' | 'bad_response';
+export type AIErrorCode = 'rate_limited' | 'quota_exceeded' | 'unauthorized' | 'missing_api_key' | 'network' | 'upstream_error' | 'bad_response';
+
+const KNOWN_CODES: AIErrorCode[] = ['rate_limited', 'quota_exceeded', 'unauthorized', 'missing_api_key', 'network', 'bad_response'];
 
 export class AIError extends Error {
   constructor(public code: AIErrorCode) {
@@ -20,27 +23,14 @@ export class AIError extends Error {
   }
 }
 
-const ENDPOINT = '/api/ai';
-
 const post = async (body: object, signal?: AbortSignal): Promise<Response> => {
-  let res: Response;
   try {
-    res = await fetch(ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      signal,
-    });
+    return await apiFetch('/api/ai', { method: 'POST', body: JSON.stringify(body), signal });
   } catch (e) {
     if ((e as Error).name === 'AbortError') throw e;
-    throw new AIError('network');
+    const code = (e as ApiError).code as AIErrorCode;
+    throw new AIError(KNOWN_CODES.includes(code) ? code : 'upstream_error');
   }
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    const code = (data.error as AIErrorCode) || 'upstream_error';
-    throw new AIError(['rate_limited', 'missing_api_key'].includes(code) ? code : 'upstream_error');
-  }
-  return res;
 };
 
 const generateText = async (contents: ChatTurn[], systemInstruction: string): Promise<string> => {

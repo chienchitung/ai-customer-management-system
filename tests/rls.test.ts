@@ -32,7 +32,11 @@ beforeAll(async () => {
     grant usage on schema public to authenticated, anon;
     insert into auth.users values ('${ALICE}'), ('${BOB}');
   `);
-  await db.exec(readFileSync(resolve(__dirname, '../supabase/migrations/20260926000000_init.sql'), 'utf8'));
+  await db.exec('create role service_role nologin bypassrls; grant usage on schema public to service_role;');
+  for (const f of ['20260926000000_init.sql', '20260926010000_google_and_usage.sql']) {
+    await db.exec(readFileSync(resolve(__dirname, '../supabase/migrations', f), 'utf8'));
+  }
+  await db.exec('grant all on all tables in schema public to service_role; grant execute on all functions in schema public to service_role;');
 });
 
 describe('customers RLS', () => {
@@ -73,5 +77,29 @@ describe('customers RLS', () => {
     await db.exec('set role anon;');
     await expect(db.query('select * from customers')).rejects.toThrow(/permission denied/);
     await db.exec('reset role;');
+  });
+
+  it('stores an impossible due date without failing the write', async () => {
+    await as(ALICE, `insert into customers (id, name, company, status, next_action) values ('d1', 'D', 'D', 'Lead', '{"description":"x","dueDate":"2026-13-45"}')`);
+    const [row] = await as(ALICE, `select next_action_due from customers where id = 'd1'`);
+    expect(row.next_action_due).toBeNull();
+  });
+});
+
+describe('server-only tables', () => {
+  it('are invisible to signed-in users', async () => {
+    await expect(as(ALICE, 'select * from google_tokens')).rejects.toThrow(/permission denied/);
+    await expect(as(ALICE, 'select * from ai_usage')).rejects.toThrow(/permission denied/);
+    await expect(as(ALICE, `select public.consume_ai_quota('${ALICE}', 5)`)).rejects.toThrow(/permission denied/);
+  });
+
+  it('consume_ai_quota enforces the daily limit', async () => {
+    await db.exec('set role service_role;');
+    const results = [];
+    for (let i = 0; i < 3; i++) {
+      results.push((await db.query<{ ok: boolean }>(`select public.consume_ai_quota('${BOB}', 2) as ok`)).rows[0].ok);
+    }
+    await db.exec('reset role;');
+    expect(results).toEqual([true, true, false]);
   });
 });

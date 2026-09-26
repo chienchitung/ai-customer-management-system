@@ -4,6 +4,9 @@ import { t, tf, translateStatus, translateInteractionType } from '../localizatio
 import AIAssistant from './AIAssistant';
 import KanbanBoard from './KanbanBoard';
 import { aiErrorMessage } from './Dialogs';
+import { useConfirm } from './ConfirmDialog';
+import { GmailPanel } from './Gmail';
+import { formatDate, friendlyDate } from '../lib/format';
 import { organizeMeetingNotes, OrganizedNotes } from '../services/geminiService';
 import { daysBetween, todayISO, addDays } from '../lib/dates';
 import { isOpen, STALE_DAYS } from '../lib/insights';
@@ -50,7 +53,9 @@ const useMediaQuery = (query: string) => {
 };
 
 const CustomerDashboard: React.FC<CustomerDashboardProps> = (props) => {
-  if (props.viewMode === 'kanban') {
+  // Kanban isn't practical on phones (and its toggle is hidden there), so phones always get the list.
+  const isPhone = useMediaQuery('(max-width: 639px)');
+  if (props.viewMode === 'kanban' && !isPhone) {
     return <KanbanBoard 
       customers={props.customers} 
       onMoveCustomer={props.onMoveCustomer}
@@ -91,6 +96,7 @@ const ListView: React.FC<CustomerDashboardProps> = ({
         setSelectedIds(prev => new Set([...prev].filter(id => customers.some(c => c.id === id))));
     }, [customers]);
     const today = todayISO();
+    const confirm = useConfirm();
     const isLargeScreen = useMediaQuery('(min-width: 1024px)');
     const [searchQuery, setSearchQuery] = useState('');
     const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
@@ -152,9 +158,6 @@ const ListView: React.FC<CustomerDashboardProps> = ({
             });
     }, [customers, searchQuery, statusFilter, lastContactStart, lastContactEnd, dealValueMin, dealValueMax]);
 
-    if (customers.length === 0) {
-        return <WelcomeScreen onOpenAddCustomerModal={onOpenAddCustomerModal} language={language} />;
-    }
 
     return (
          <div className="flex h-full overflow-hidden">
@@ -225,8 +228,8 @@ const ListView: React.FC<CustomerDashboardProps> = ({
                         onClear={() => setSelectedIds(new Set())}
                         onStatus={status => onBulkUpdate([...selectedIds], { status })}
                         onFollowUp={() => onBulkUpdate([...selectedIds], { followUpDays: 3 })}
-                        onDelete={() => {
-                            if (window.confirm(tf('bulk.confirmDelete', language, { n: selectedIds.size }))) {
+                        onDelete={async () => {
+                            if (await confirm(tf('bulk.confirmDelete', language, { n: selectedIds.size }), { danger: true, confirmLabel: t('bulk.delete', language) })) {
                                 onDeleteCustomers([...selectedIds]);
                                 setSelectedIds(new Set());
                             }
@@ -308,8 +311,8 @@ const ListView: React.FC<CustomerDashboardProps> = ({
                             onSetNextAction={onSetNextAction}
                             onSnooze={onSnooze}
                             onCompleteAction={onCompleteAction}
-                            onDelete={() => {
-                                if (window.confirm(tf('confirmDeleteOne', language, { name: selectedCustomer.name }))) onDeleteCustomers([selectedCustomer.id]);
+                            onDelete={async () => {
+                                if (await confirm(tf('confirmDeleteOne', language, { name: selectedCustomer.name }), { danger: true, confirmLabel: t('bulk.delete', language) })) onDeleteCustomers([selectedCustomer.id]);
                             }}
                             language={language}
                         />
@@ -321,7 +324,7 @@ const ListView: React.FC<CustomerDashboardProps> = ({
                     </div>
                     {isLargeScreen && (
                     <aside
-                        className={`flex-shrink-0 transition-all duration-300 ease-in-out ${isAIAssistantOpen ? 'w-96' : 'w-0 opacity-0 pointer-events-none'}`}
+                        className={`flex-shrink-0 transition-all duration-300 ease-in-out ${isAIAssistantOpen ? 'w-80 2xl:w-96' : 'w-0 opacity-0 pointer-events-none'}`}
                         aria-hidden={!isAIAssistantOpen}
                     >
                         <div className="h-full overflow-hidden">
@@ -334,7 +337,7 @@ const ListView: React.FC<CustomerDashboardProps> = ({
                 <div className="hidden md:flex flex-col items-center justify-center h-full text-text-secondary bg-surface rounded-lg border border-border">
                     <p className="text-lg">{t('selectCustomerPrompt', language)}</p>
                     <p className="text-sm mt-2">{t('or', language)}</p>
-                    <button onClick={onOpenAddCustomerModal} className="mt-4 px-4 py-2 bg-primary text-white text-sm font-semibold rounded-md hover:bg-primary/90 transition active:scale-95">{t('addNewCustomer', language)}</button>
+                    <button onClick={onOpenAddCustomerModal} className="mt-4 px-4 py-2 bg-primary text-on-primary text-sm font-semibold rounded-md hover:bg-primary/90 transition active:scale-95">{t('addNewCustomer', language)}</button>
                 </div>
                 )}
             </div>
@@ -342,25 +345,31 @@ const ListView: React.FC<CustomerDashboardProps> = ({
     );
 };
 
-const WelcomeScreen: React.FC<{ onOpenAddCustomerModal: () => void, language: 'en' | 'zh' }> = ({ onOpenAddCustomerModal, language }) => {
-    return (
-        <div className="col-span-full h-full flex flex-col items-center justify-center text-center p-8 bg-surface rounded-lg border border-border">
-            <div className="p-4 bg-primary/10 rounded-full mb-6">
-                <LightBulbIcon className="w-12 h-12 text-primary" />
-            </div>
-            <h2 className="text-2xl font-bold text-text-primary">{t('welcome.title', language)}</h2>
-            <p className="mt-2 max-w-lg text-text-secondary">
-                {t('welcome.message', language)}
-            </p>
-            <button 
-                onClick={onOpenAddCustomerModal} 
-                className="mt-8 px-6 py-3 bg-primary text-white text-base font-semibold rounded-lg hover:bg-primary/90 transition-transform active:scale-95"
-            >
+export const WelcomeScreen: React.FC<{
+    onOpenAddCustomerModal: () => void;
+    onOpenCapture: () => void;
+    onLoadDemo: () => void;
+    language: 'en' | 'zh';
+}> = ({ onOpenAddCustomerModal, onOpenCapture, onLoadDemo, language }) => (
+    <div className="h-full flex flex-col items-center justify-center text-center p-8 bg-surface rounded-lg border border-border">
+        <div className="p-4 bg-primary/10 rounded-full mb-6">
+            <LightBulbIcon className="w-12 h-12 text-primary" />
+        </div>
+        <h2 className="text-2xl font-bold text-text-primary">{t('welcome.title', language)}</h2>
+        <p className="mt-2 max-w-lg text-text-secondary">{t('welcome.message', language)}</p>
+        <div className="mt-8 flex flex-wrap justify-center gap-3">
+            <button onClick={onOpenAddCustomerModal} className="px-5 py-2.5 bg-primary text-on-primary font-semibold rounded-lg hover:bg-primary/90 transition active:scale-95">
                 {t('welcome.cta', language)}
             </button>
+            <button onClick={onOpenCapture} className="px-5 py-2.5 border border-primary text-primary font-semibold rounded-lg hover:bg-primary/10 transition flex items-center gap-2">
+                <SparklesIcon className="w-5 h-5" />{t('capture.button', language)}
+            </button>
+            <button onClick={onLoadDemo} className="px-5 py-2.5 bg-secondary font-semibold rounded-lg hover:bg-border transition">
+                {t('emptyCloud.demo', language)}
+            </button>
         </div>
-    );
-};
+    </div>
+);
 
 const CustomerDetails: React.FC<{
   customer: Customer;
@@ -442,6 +451,8 @@ const CustomerDetails: React.FC<{
         </div>
         </div>
         
+        <InteractionLogger customer={customer} onAddInteraction={onAddInteraction} onUpdateCustomer={onUpdateCustomer} onSetNextAction={onSetNextAction} language={language} />
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <NextActionCard
                 customer={customer}
@@ -453,9 +464,9 @@ const CustomerDetails: React.FC<{
             <KeyContactsCard contacts={customer.keyContacts} language={language} />
         </div>
 
+        <GmailPanel customer={customer} language={language} onAddInteraction={onAddInteraction} onSetNextAction={(id, a) => onSetNextAction(id, a)} />
+
         <CustomerProfileCard customer={customer} language={language} />
-        
-        <InteractionLogger customer={customer} onAddInteraction={onAddInteraction} onUpdateCustomer={onUpdateCustomer} onSetNextAction={onSetNextAction} language={language} />
 
         <div className="bg-surface p-4 rounded-lg border border-border">
         <h3 className="text-xl font-bold text-text-primary mb-4">{t('interactionHistory', language)}</h3>
@@ -508,7 +519,7 @@ const CustomerDetails: React.FC<{
                 <tbody>
                     {filteredInteractions.length > 0 ? filteredInteractions.map(interaction => (
                     <tr key={interaction.id} className="border-b border-border last:border-b-0 hover:bg-secondary">
-                        <td className="p-2 whitespace-nowrap text-text-secondary">{interaction.date}</td>
+                        <td className="p-2 whitespace-nowrap text-text-secondary">{formatDate(interaction.date, language)}{interaction.source === 'gmail' && <span className="ml-1 text-rose-500" title="Gmail">✉</span>}</td>
                         <td className="p-2">
                             <span className="font-semibold text-primary whitespace-nowrap">{translateInteractionType(interaction.type, language)}</span>
                         </td>
@@ -555,7 +566,7 @@ const NextActionCard: React.FC<{
     const dueLabel = !action?.dueDate ? '' 
         : action.dueDate < today ? tf('nextActionCard.overdueBy', language, { n: daysBetween(action.dueDate, today) })
         : action.dueDate === today ? t('nextActionCard.dueTodayLabel', language)
-        : `${t('dueDate', language)}: ${action.dueDate}`;
+        : friendlyDate(action.dueDate, language);
 
     const smallBtn = 'text-xs px-2 py-1 rounded-md font-semibold transition active:scale-95';
 
@@ -581,7 +592,7 @@ const NextActionCard: React.FC<{
                 <textarea autoFocus value={desc} onChange={e => setDesc(e.target.value)} rows={2} className="w-full bg-secondary rounded-md p-2 text-sm focus:ring-2 focus:ring-primary/50 outline-none" />
                 <div className="flex gap-2 items-center">
                     <input type="date" value={due} onChange={e => setDue(e.target.value)} className="bg-secondary rounded-md p-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/50" />
-                    <button type="submit" className={`${smallBtn} bg-primary text-white hover:bg-primary/90`}>{t('closeReason.save', language)}</button>
+                    <button type="submit" className={`${smallBtn} bg-primary text-on-primary hover:bg-primary/90`}>{t('closeReason.save', language)}</button>
                     <button type="button" onClick={() => setEditing(false)} className={`${smallBtn} bg-secondary hover:bg-border`}>{t('modal.cancel', language)}</button>
                 </div>
             </form>
@@ -595,7 +606,7 @@ const NextActionCard: React.FC<{
                     </div>
                 )}
                 <div className="flex flex-wrap gap-2 mt-3">
-                    <button onClick={onComplete} className={`${smallBtn} bg-primary text-white hover:bg-primary/90 flex items-center gap-1`}><CheckIcon className="w-3.5 h-3.5" />{t('nextActionCard.complete', language)}</button>
+                    <button onClick={onComplete} className={`${smallBtn} bg-primary text-on-primary hover:bg-primary/90 flex items-center gap-1`}><CheckIcon className="w-3.5 h-3.5" />{t('nextActionCard.complete', language)}</button>
                     <button onClick={() => onSnooze(1)} className={`${smallBtn} bg-secondary hover:bg-border`}>{t('nextActionCard.snooze', language)}</button>
                     <button onClick={() => onSnooze(7)} className={`${smallBtn} bg-secondary hover:bg-border`}>{t('nextActionCard.snoozeWeek', language)}</button>
                 </div>
@@ -603,7 +614,7 @@ const NextActionCard: React.FC<{
         ) : (
             <div>
                 <p className="text-text-secondary text-sm">{t('noNextAction', language)}</p>
-                <button onClick={startEdit} className={`${smallBtn} mt-2 bg-primary text-white hover:bg-primary/90`}>{t('todayView.setAction', language)}</button>
+                <button onClick={startEdit} className={`${smallBtn} mt-2 bg-primary text-on-primary hover:bg-primary/90`}>{t('todayView.setAction', language)}</button>
             </div>
         )}
     </div>
@@ -803,7 +814,7 @@ const InteractionLogger: React.FC<{
           {!!aiResult.newPainPoints?.length && <p><span className="text-text-secondary">{t('customerPainPoints', language)}:</span> {aiResult.newPainPoints.join('、')}</p>}
           {!!aiResult.newCompetitors?.length && <p><span className="text-text-secondary">{t('knownCompetitors', language)}:</span> {aiResult.newCompetitors.join('、')}</p>}
           <div className="flex gap-2 pt-1">
-            <button type="button" onClick={applyAll} className="px-3 py-1.5 bg-primary text-white text-xs font-semibold rounded-md hover:bg-primary/90 active:scale-95">{t('logger.saveAll', language)}</button>
+            <button type="button" onClick={applyAll} className="px-3 py-1.5 bg-primary text-on-primary text-xs font-semibold rounded-md hover:bg-primary/90 active:scale-95">{t('logger.saveAll', language)}</button>
             <button type="button" onClick={() => { setSummary(aiResult.summary); setType(aiResult.type); setAiResult(null); }} className="px-3 py-1.5 bg-secondary text-xs font-semibold rounded-md hover:bg-border">{t('logger.applySummary', language)}</button>
             <button type="button" onClick={() => setAiResult(null)} className="px-3 py-1.5 text-xs font-semibold rounded-md hover:bg-secondary">{t('modal.cancel', language)}</button>
           </div>
@@ -832,7 +843,7 @@ const InteractionLogger: React.FC<{
             <SparklesIcon className="w-4 h-4" />
             {t(organizing ? 'logger.organizing' : 'logger.organize', language)}
           </button>
-          <button type="submit" className="px-4 py-2 bg-primary text-white text-sm font-semibold rounded-md hover:bg-primary/90 transition disabled:opacity-50 flex items-center gap-2 active:scale-95" disabled={!summary.trim()}>
+          <button type="submit" className="px-4 py-2 bg-primary text-on-primary text-sm font-semibold rounded-md hover:bg-primary/90 transition disabled:opacity-50 flex items-center gap-2 active:scale-95" disabled={!summary.trim()}>
             {t('logInteraction', language)}
           </button>
         </div>

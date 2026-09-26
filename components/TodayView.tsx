@@ -5,6 +5,7 @@ import { buildWorkList, computeMetrics, TaskKind, WorkItem } from '../lib/insigh
 import { addDays, todayISO } from '../lib/dates';
 import { getCachedProactiveSummary, getProactiveSummary } from '../services/geminiService';
 import { statusColors } from './CustomerDashboard';
+import { formatDate } from '../lib/format';
 import { aiErrorMessage } from './Dialogs';
 import { CheckIcon, SparklesIcon, CalendarIcon } from './icons';
 
@@ -75,7 +76,7 @@ const TodayView: React.FC<TodayViewProps> = ({ customers, language, onOpenCustom
       <div className="max-w-5xl mx-auto space-y-6 pb-8">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 className="text-2xl font-bold">{t('todayView.title', language)} <span className="text-base font-medium text-text-secondary">· {today}</span></h2>
+            <h2 className="text-2xl font-bold">{t('todayView.title', language)} <span className="text-base font-medium text-text-secondary">· {formatDate(today, language)}</span></h2>
             <p className="text-sm text-text-secondary mt-1">{t('todayView.subtitle', language)}</p>
           </div>
           {items.length > 0 && (
@@ -117,7 +118,7 @@ const TodayView: React.FC<TodayViewProps> = ({ customers, language, onOpenCustom
                       <p className="text-sm mt-1 flex items-center gap-1 text-text-primary">
                         <CalendarIcon className="w-4 h-4 text-text-secondary flex-shrink-0" />
                         <span className="truncate">{c.nextAction.description}</span>
-                        {c.nextAction.dueDate && <span className="text-text-secondary whitespace-nowrap">· {c.nextAction.dueDate}</span>}
+                        {c.nextAction.dueDate && <span className="text-text-secondary whitespace-nowrap">· {formatDate(c.nextAction.dueDate, language)}</span>}
                       </p>
                     )}
                     {hint && (
@@ -130,13 +131,13 @@ const TodayView: React.FC<TodayViewProps> = ({ customers, language, onOpenCustom
                   <div className="flex gap-2 flex-shrink-0">
                     {c.nextAction ? (
                       <>
-                        <button onClick={() => onComplete(c.id)} className="px-3 py-1.5 text-sm font-semibold rounded-md bg-primary text-white hover:bg-primary/90 active:scale-95 transition">{t('todayView.complete', language)}</button>
+                        <button onClick={() => onComplete(c.id)} className="px-3 py-1.5 text-sm font-semibold rounded-md bg-primary text-on-primary hover:bg-primary/90 active:scale-95 transition">{t('todayView.complete', language)}</button>
                         <button onClick={() => onSnooze(c.id, 1)} className="px-3 py-1.5 text-sm font-medium rounded-md bg-secondary hover:bg-border transition">{t('todayView.snooze', language)}</button>
                       </>
                     ) : (
                       <button
                         onClick={() => onSetNextAction(c.id, { description: tf('todayView.defaultAction', language, { name: c.name }), dueDate: addDays(today, 1) })}
-                        className="px-3 py-1.5 text-sm font-semibold rounded-md bg-primary text-white hover:bg-primary/90 active:scale-95 transition"
+                        className="px-3 py-1.5 text-sm font-semibold rounded-md bg-primary text-on-primary hover:bg-primary/90 active:scale-95 transition"
                       >
                         {t('todayView.setAction', language)}
                       </button>

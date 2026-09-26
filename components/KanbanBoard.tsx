@@ -3,6 +3,7 @@ import { Customer, CustomerStatus } from '../types';
 // FIX: Import the 't' function for localization.
 import { t, translateStatus } from '../localization';
 import { todayISO } from '../lib/dates';
+import { formatDate } from '../lib/format';
 import { PencilIcon, PlusIcon } from './icons';
 
 interface KanbanBoardProps {
@@ -92,7 +93,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
                                 <span className="text-xs text-text-secondary">· ${customersInColumn.reduce((sum, c) => sum + (c.dealValue ?? 0), 0).toLocaleString()}</span>
                             </div>
                             <div className="flex items-center">
-                                <button onClick={onOpenAddCustomerModal} className="w-6 h-6 flex items-center justify-center text-text-secondary hover:bg-black/5 dark:hover:bg-white/10 rounded-md transition-colors">
+                                <button onClick={onOpenAddCustomerModal} aria-label={t('addNewCustomer', language)} title={t('addNewCustomer', language)} className="w-6 h-6 flex items-center justify-center text-text-secondary hover:bg-black/5 dark:hover:bg-white/10 rounded-md transition-colors">
                                     <PlusIcon className="w-4 h-4" />
                                 </button>
                             </div>
@@ -139,10 +140,24 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
                                                 {customer.dealValue ? <span className="font-semibold text-primary">${customer.dealValue.toLocaleString()}</span> : null}
                                                 {customer.nextAction?.dueDate && (
                                                     <span className={customer.nextAction.dueDate < today ? 'text-rose-600 dark:text-rose-400 font-semibold' : customer.nextAction.dueDate === today ? 'text-amber-600 dark:text-amber-400 font-semibold' : 'text-text-secondary'}>
-                                                        {customer.nextAction.dueDate}
+                                                        {formatDate(customer.nextAction.dueDate, language)}
                                                     </span>
                                                 )}
                                             </div>
+                                            {/* Drag and drop doesn't work on touch screens; offer a menu instead. */}
+                                            <select
+                                                value=""
+                                                onClick={e => e.stopPropagation()}
+                                                onChange={e => {
+                                                    const next = e.target.value as CustomerStatus;
+                                                    if (next) onMoveCustomer(customer.id, next, customers.filter(c => c.status === next).length);
+                                                }}
+                                                aria-label={`${t('moveTo', language)} ${customer.name}`}
+                                                className="coarse-only mt-2 w-full text-xs bg-secondary rounded-md px-2 py-1"
+                                            >
+                                                <option value="">{t('moveTo', language)}</option>
+                                                {columns.filter(s => s !== status).map(s => <option key={s} value={s}>{translateStatus(s, language)}</option>)}
+                                            </select>
                                         </div>
                                     </div>
                                 </div>

@@ -6,6 +6,10 @@ import { AIError, extractCustomerFromText } from '../services/geminiService';
 import { generateId } from '../lib/ids';
 import { addDays, todayISO } from '../lib/dates';
 import { SparklesIcon } from './icons';
+import { useGmail } from '../hooks/useGmail';
+import { GmailMessage, getGmailText, listRecentInbox } from '../lib/gmail';
+import { formatDate } from '../lib/format';
+import { toISODate } from '../lib/dates';
 
 type Language = 'en' | 'zh';
 
@@ -13,7 +17,7 @@ export const aiErrorMessage = (error: unknown, language: Language) =>
   t(`ai.errors.${error instanceof AIError ? error.code : 'upstream_error'}`, language);
 
 const inputClass = 'w-full bg-secondary rounded-md p-2 text-sm focus:ring-2 focus:ring-inset focus:ring-primary/50 outline-none transition';
-const primaryBtn = 'px-4 py-2 bg-primary text-white text-sm font-semibold rounded-md hover:bg-primary/90 transition disabled:opacity-50 active:scale-95';
+const primaryBtn = 'px-4 py-2 bg-primary text-on-primary text-sm font-semibold rounded-md hover:bg-primary/90 transition disabled:opacity-50 active:scale-95';
 const secondaryBtn = 'px-4 py-2 bg-secondary text-text-primary text-sm font-semibold rounded-md hover:bg-border transition';
 
 // ---------- Close reason (asked when a deal is moved to Won / Lost) ----------
@@ -99,7 +103,7 @@ export const CompleteActionModal: React.FC<{
             <div className="flex gap-2 flex-wrap">
               {Object.values(InteractionType).map(it => (
                 <button type="button" key={it} onClick={() => setType(it)}
-                  className={`text-xs px-3 py-1 rounded-full border transition ${type === it ? 'bg-primary text-white border-primary' : 'border-border hover:bg-secondary'}`}>
+                  className={`text-xs px-3 py-1 rounded-full border transition ${type === it ? 'bg-primary text-on-primary border-primary' : 'border-border hover:bg-secondary'}`}>
                   {t(`interactionTypes.${it}`, language)}
                 </button>
               ))}
@@ -135,8 +139,36 @@ export const SmartCaptureModal: React.FC<{
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const gmail = useGmail();
+  const [inbox, setInbox] = useState<GmailMessage[] | null>(null);
+  const [inboxLoading, setInboxLoading] = useState(false);
 
-  useEffect(() => { if (isOpen) { setText(''); setError(null); } }, [isOpen]);
+  useEffect(() => { if (isOpen) { setText(''); setError(null); setInbox(null); } }, [isOpen]);
+
+  const loadInbox = async () => {
+    setInboxLoading(true);
+    setError(null);
+    try {
+      setInbox(await listRecentInbox());
+    } catch {
+      setError(t('gmail.error', language));
+    } finally {
+      setInboxLoading(false);
+    }
+  };
+
+  const pick = async (m: GmailMessage) => {
+    setInboxLoading(true);
+    try {
+      const full = await getGmailText(m.id);
+      setText(`From: ${full.from}\nSubject: ${full.subject}\n\n${full.text}`);
+      setInbox(null);
+    } catch {
+      setError(t('gmail.error', language));
+    } finally {
+      setInboxLoading(false);
+    }
+  };
 
   const extract = async () => {
     setLoading(true);
@@ -162,6 +194,24 @@ export const SmartCaptureModal: React.FC<{
     <Modal size="md" isOpen={isOpen} onClose={onClose} title={t('capture.title', language)}>
       <div className="space-y-3">
         <p className="text-sm text-text-secondary">{t('capture.help', language)}</p>
+        {gmail.status.connected && !inbox && (
+          <button type="button" onClick={loadInbox} disabled={inboxLoading} className="text-sm font-semibold text-primary hover:underline disabled:opacity-50">
+            {inboxLoading ? t('gmail.loadingInbox', language) : `✉ ${t('gmail.fromInbox', language)}`}
+          </button>
+        )}
+        {inbox && (
+          <ul className="max-h-56 overflow-y-auto border border-border rounded-md divide-y divide-border">
+            {inbox.length === 0 && <li className="p-3 text-sm text-text-secondary">{t('gmail.inboxEmpty', language)}</li>}
+            {inbox.map(m => (
+              <li key={m.id}>
+                <button type="button" onClick={() => pick(m)} disabled={inboxLoading} className="w-full text-left p-2 hover:bg-secondary disabled:opacity-50">
+                  <p className="text-sm font-medium truncate">{m.from.replace(/<.*>/, '').trim()} · {m.subject}</p>
+                  <p className="text-xs text-text-secondary truncate">{formatDate(toISODate(new Date(m.date)), language)} — {m.snippet}</p>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
         <textarea autoFocus value={text} onChange={e => setText(e.target.value)} rows={8} className={inputClass} placeholder={t('capture.placeholder', language)}
           onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && text.trim() && !loading) extract(); }} />
         {error && <p role="alert" className="text-sm text-rose-600 dark:text-rose-400">{error}</p>}

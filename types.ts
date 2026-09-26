@@ -21,6 +21,8 @@ export interface Interaction {
   type: InteractionType;
   date: string; // Stored as 'YYYY-MM-DD'
   summary: string;
+  source?: 'gmail';
+  externalId?: string; // e.g. Gmail message id, used to avoid logging the same email twice
 }
 
 // Interface for a key contact at the customer's company.
