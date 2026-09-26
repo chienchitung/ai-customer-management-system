@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Customer, CustomerStatus, InteractionType } from '../types';
-import { statusColors } from './CustomerDashboard';
+import { StatusBadge, STATUS_DOT } from './ui';
 import { t, translateStatus, translateInteractionType } from '../localization';
 import { computeMetrics } from '../lib/insights';
 import { todayISO } from '../lib/dates';
@@ -19,17 +19,17 @@ const sum = (counts: Record<InteractionType, number>) => Object.values(Interacti
 const pct = (r: number | null) => (r === null ? '—' : `${Math.round(r * 100)}%`);
 
 const StatCard: React.FC<{ title: string; value: string | number; description?: string }> = ({ title, value, description }) => (
-    <div className="bg-surface p-5 rounded-lg border border-border">
-        <h3 className="text-sm font-medium text-text-secondary">{title}</h3>
-        <p className="text-2xl font-bold mt-1 text-text-primary">{value}</p>
+    <div className="card px-4 py-3">
+        <h3 className="text-xs font-medium text-text-secondary">{title}</h3>
+        <p className="text-xl font-semibold mt-1 text-text-primary tabular-nums">{value}</p>
         {description && <p className="text-xs text-text-secondary mt-2">{description}</p>}
     </div>
 );
 
 const Panel: React.FC<{ title: string; children: React.ReactNode; action?: React.ReactNode }> = ({ title, children, action }) => (
-    <div className="bg-surface p-5 rounded-lg border border-border">
-        <div className="flex items-center justify-between mb-4 gap-2">
-            <h3 className="text-lg font-semibold">{title}</h3>
+    <div className="card p-4">
+        <div className="flex items-center justify-between mb-4 gap-2 min-h-7">
+            <h3 className="card-title">{title}</h3>
             {action}
         </div>
         {children}
@@ -38,7 +38,7 @@ const Panel: React.FC<{ title: string; children: React.ReactNode; action?: React
 
 // Interaction type colors (validated for both themes).
 const TYPE_COLORS: Record<InteractionType, string> = {
-    [InteractionType.EMAIL]: 'bg-sky-500',
+    [InteractionType.EMAIL]: 'bg-indigo-500',
     [InteractionType.CALL]: 'bg-amber-500',
     [InteractionType.MEETING]: 'bg-emerald-500',
     [InteractionType.NOTE]: 'bg-slate-400',
@@ -68,30 +68,31 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ customers, lang
     };
 
     return (
-        <div className="h-full overflow-y-auto pb-8">
-            <h2 className="text-xl font-semibold mb-4">{t('performanceDashboard', language)}</h2>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="h-full overflow-y-auto pb-8 -mx-4 md:-mx-6 px-4 md:px-6">
+          <div className="max-w-6xl mx-auto">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 <StatCard title={t('pipelineValue', language)} value={money(m.pipelineValue)} description={t('pipelineValueDesc', language)} />
                 <StatCard title={t('dash.weightedForecast', language)} value={money(m.weightedForecast)} description={t('dash.weightedForecastDesc', language)} />
                 <StatCard title={t('dash.winRate', language)} value={pct(m.winRate)} description={t('dash.winRateDesc', language)} />
                 <StatCard title={t('dash.wonValue', language)} value={money(m.wonValue)} description={t('dash.wonValueDesc', language)} />
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mt-3">
                 <Panel title={t('salesFunnel', language)}>
                     <div className="space-y-3">
                         {funnel.map(({ status, count, value }) => (
-                            <div key={status} className="flex items-center gap-3">
-                                <span className="w-24 text-sm font-medium text-text-secondary text-right flex-shrink-0">{translateStatus(status, language)}</span>
-                                <div className="flex-grow bg-secondary rounded-full h-7">
-                                    <div
-                                        className={`${statusColors[status].bg} h-7 rounded-full flex items-center px-3 transition-all duration-500 ease-out`}
-                                        style={{ width: `${Math.max((count / maxCount) * 100, count ? 12 : 0)}%` }}
-                                    >
-                                        {count > 0 && <span className={`text-sm font-bold ${statusColors[status].text}`}>{count}</span>}
-                                    </div>
+                            <div key={status}>
+                                <div className="flex items-center justify-between text-sm mb-1">
+                                    <span className="flex items-center gap-2">
+                                        <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[status]}`} />
+                                        {translateStatus(status, language)}
+                                        <span className="text-text-secondary tabular-nums">{count}</span>
+                                    </span>
+                                    <span className="text-xs text-text-secondary tabular-nums">{money(value)}</span>
                                 </div>
-                                <span className="w-24 text-xs text-text-secondary flex-shrink-0">{money(value)}</span>
+                                <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
+                                    <div className={`h-full rounded-full ${STATUS_DOT[status]} transition-all duration-500 ease-out`} style={{ width: `${(count / maxCount) * 100}%` }} />
+                                </div>
                             </div>
                         ))}
                     </div>
@@ -99,7 +100,7 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ customers, lang
 
                 <Panel title={t('dash.conversion', language)}>
                     <table className="w-full text-sm">
-                        <thead className="text-text-secondary text-left">
+                        <thead className="text-xs text-text-secondary text-left">
                             <tr><th className="font-medium pb-2"></th><th className="font-medium pb-2">{t('dash.conversion', language)}</th><th className="font-medium pb-2">{t('dash.avgDays', language)}</th></tr>
                         </thead>
                         <tbody>
@@ -141,8 +142,8 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ customers, lang
                 <Panel
                     title={t('dash.closedReasons', language)}
                     action={m.closedReasons.length > 0 && (
-                        <button onClick={analyze} disabled={analyzing} className="px-3 py-1.5 text-xs font-semibold rounded-md border border-primary text-primary hover:bg-primary/10 transition flex items-center gap-1 disabled:opacity-50">
-                            <SparklesIcon className="w-4 h-4" />{t(analyzing ? 'dash.analyzing' : 'dash.aiAnalyze', language)}
+                        <button onClick={analyze} disabled={analyzing} className="btn btn-sm btn-secondary">
+                            <SparklesIcon className="w-3.5 h-3.5 text-primary" />{t(analyzing ? 'dash.analyzing' : 'dash.aiAnalyze', language)}
                         </button>
                     )}
                 >
@@ -152,15 +153,16 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ customers, lang
                         <ul className="space-y-2 text-sm">
                             {m.closedReasons.map((r, i) => (
                                 <li key={i} className="flex gap-2">
-                                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full h-fit whitespace-nowrap ${statusColors[r.status].bg} ${statusColors[r.status].text}`}>{translateStatus(r.status, language)}</span>
+                                    <StatusBadge status={r.status} language={language} className="h-fit" />
                                     <span><span className="font-medium">{r.company}</span> — {r.reason}</span>
                                 </li>
                             ))}
                         </ul>
                     )}
-                    {insight && <div className="mt-4 p-3 rounded-md bg-primary/5 border border-primary/30"><MarkdownRenderer content={insight} /></div>}
+                    {insight && <div className="mt-4 p-3 rounded-md bg-secondary/60 border border-border"><MarkdownRenderer content={insight} /></div>}
                 </Panel>
             </div>
+          </div>
         </div>
     );
 };

@@ -4,7 +4,11 @@ export default {
   content: ['./index.html', './*.{ts,tsx}', './components/**/*.{ts,tsx}'],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['"Inter Variable"', '"PingFang TC"', '"Noto Sans TC"', '"Microsoft JhengHei"', 'system-ui', 'sans-serif'],
+      },
       colors: {
+        sidebar: 'rgb(var(--color-sidebar) / <alpha-value>)',
         background: 'rgb(var(--color-background) / <alpha-value>)',
         surface: 'rgb(var(--color-surface) / <alpha-value>)',
         primary: 'rgb(var(--color-primary) / <alpha-value>)',

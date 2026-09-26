@@ -6,11 +6,13 @@ import KanbanBoard from './KanbanBoard';
 import { aiErrorMessage } from './Dialogs';
 import { useConfirm } from './ConfirmDialog';
 import { GmailPanel } from './Gmail';
+import { useGmail } from '../hooks/useGmail';
+import { Avatar, STATUS_DOT, Tabs } from './ui';
 import { formatDate, friendlyDate } from '../lib/format';
 import { organizeMeetingNotes, OrganizedNotes } from '../services/geminiService';
 import { daysBetween, todayISO, addDays } from '../lib/dates';
 import { isOpen, STALE_DAYS } from '../lib/insights';
-import { ArrowLeftIcon, CalendarIcon, IdentificationIcon, LightBulbIcon, PencilIcon, SearchIcon, FilterIcon, SparklesIcon, MicrophoneIcon, TrashIcon, CheckIcon } from './icons';
+import { PlusIcon, ArrowLeftIcon, CalendarIcon, IdentificationIcon, LightBulbIcon, PencilIcon, SearchIcon, FilterIcon, SparklesIcon, MicrophoneIcon, TrashIcon, CheckIcon } from './icons';
 
 // Mapping customer statuses to specific Tailwind CSS classes for color-coding.
 export const statusColors: { [key in CustomerStatus]: { text: string; bg: string; border: string; dropdown: string } } = {
@@ -164,10 +166,10 @@ const ListView: React.FC<CustomerDashboardProps> = ({
             {/* Customer List Panel (Sidebar on desktop, full view on mobile) */}
             <div className={`
                 ${selectedCustomer ? 'hidden md:flex' : 'flex'}
-                w-full md:w-80 lg:w-96 flex-shrink-0
-                flex-col bg-surface rounded-lg border border-border
+                w-full md:w-72 xl:w-80 flex-shrink-0
+                flex-col md:border-r border-border
             `}>
-                <div className="p-2 sticky top-0 bg-surface z-10 border-b border-border">
+                <div className="p-3 border-b border-border">
                   <div className="flex items-center gap-2">
                     <div className="relative flex-grow">
                       <input
@@ -177,25 +179,27 @@ const ListView: React.FC<CustomerDashboardProps> = ({
                         placeholder={`${t('searchCustomer', language)}  /`}
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full bg-secondary border border-transparent rounded-md py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition"
+                        className="input pl-8"
                       />
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <SearchIcon className="w-5 h-5 text-text-secondary" />
+                      <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
+                        <SearchIcon className="w-4 h-4 text-text-secondary" />
                       </div>
                     </div>
                     <button 
                         onClick={() => setShowAdvancedFilters(prev => !prev)}
-                        className={`p-2 rounded-md transition-colors ${showAdvancedFilters ? 'bg-primary/20 text-primary' : 'hover:bg-secondary'}`}
+                        className={`btn btn-icon ${showAdvancedFilters ? 'btn-secondary text-primary' : 'btn-ghost'}`}
                         title={t('filters.advancedFilters', language)}
+                        aria-label={t('filters.advancedFilters', language)}
+                        aria-expanded={showAdvancedFilters}
                     >
-                        <FilterIcon className="w-5 h-5" />
+                        <FilterIcon className="w-4 h-4" />
                     </button>
                   </div>
                   {showAdvancedFilters && (
-                    <div className="p-2 mt-2 space-y-3 bg-secondary/50 rounded-md">
+                    <div className="p-3 mt-3 space-y-3 rounded-md border border-border bg-secondary/40">
                         <div>
                             <label className="text-xs font-medium text-text-secondary">{t('filters.status', language)}</label>
-                            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="w-full mt-1 bg-surface border border-border rounded-md py-1 px-2 text-sm focus:ring-2 focus:ring-primary/50 outline-none transition">
+                            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="input mt-1">
                                 <option value="all">{t('filters.allStatuses', language)}</option>
                                 {Object.values(CustomerStatus).map(s => <option key={s} value={s}>{translateStatus(s, language)}</option>)}
                             </select>
@@ -203,20 +207,20 @@ const ListView: React.FC<CustomerDashboardProps> = ({
                         <div>
                             <label className="text-xs font-medium text-text-secondary">{t('filters.lastContact', language)}</label>
                             <div className="flex items-center gap-2 mt-1">
-                                <input type="date" value={lastContactStart} onChange={e => setLastContactStart(e.target.value)} className="w-full bg-surface border border-border rounded-md py-1 px-2 text-sm focus:ring-2 focus:ring-primary/50 outline-none transition" />
+                                <input type="date" value={lastContactStart} onChange={e => setLastContactStart(e.target.value)} className="input" />
                                 <span className="text-text-secondary text-sm">-</span>
-                                <input type="date" value={lastContactEnd} onChange={e => setLastContactEnd(e.target.value)} min={lastContactStart} className="w-full bg-surface border border-border rounded-md py-1 px-2 text-sm focus:ring-2 focus:ring-primary/50 outline-none transition" />
+                                <input type="date" value={lastContactEnd} onChange={e => setLastContactEnd(e.target.value)} min={lastContactStart} className="input" />
                             </div>
                         </div>
                         <div>
                             <label className="text-xs font-medium text-text-secondary">{t('filters.dealValue', language)}</label>
                              <div className="flex items-center gap-2 mt-1">
-                                <input type="number" placeholder={t('filters.min', language)} value={dealValueMin} onChange={e => setDealValueMin(e.target.value)} className="w-full bg-surface border border-border rounded-md py-1 px-2 text-sm focus:ring-2 focus:ring-primary/50 outline-none transition" />
+                                <input type="number" placeholder={t('filters.min', language)} value={dealValueMin} onChange={e => setDealValueMin(e.target.value)} className="input" />
                                 <span className="text-text-secondary text-sm">-</span>
-                                <input type="number" placeholder={t('filters.max', language)} value={dealValueMax} onChange={e => setDealValueMax(e.target.value)} className="w-full bg-surface border border-border rounded-md py-1 px-2 text-sm focus:ring-2 focus:ring-primary/50 outline-none transition" />
+                                <input type="number" placeholder={t('filters.max', language)} value={dealValueMax} onChange={e => setDealValueMax(e.target.value)} className="input" />
                             </div>
                         </div>
-                        <button onClick={handleClearFilters} className="w-full text-center text-sm font-semibold text-primary hover:underline">{t('filters.clear', language)}</button>
+                        <button onClick={handleClearFilters} className="btn btn-ghost btn-sm w-full">{t('filters.clear', language)}</button>
                     </div>
                   )}
                 </div>
@@ -236,7 +240,7 @@ const ListView: React.FC<CustomerDashboardProps> = ({
                         }}
                     />
                 )}
-                <ul className="p-2 space-y-1 flex-grow overflow-y-auto">
+                <ul className="p-2 space-y-px flex-grow overflow-y-auto">
                 {filteredCustomers.map(customer => {
                     const due = customer.nextAction?.dueDate;
                     const overdue = isOpen(customer) && !!due && due < today;
@@ -247,33 +251,35 @@ const ListView: React.FC<CustomerDashboardProps> = ({
                     <li
                         key={customer.id}
                         onClick={() => onSelectCustomer(customer.id)}
-                        className={`group p-3 rounded-md cursor-pointer transition-all flex gap-2 ${
-                            selectedCustomer?.id === customer.id ? 'bg-primary/10' : 'hover:bg-secondary'
+                        aria-current={selectedCustomer?.id === customer.id ? 'true' : undefined}
+                        className={`group px-2 py-2 rounded-md cursor-pointer transition-colors flex items-center gap-2.5 ${
+                            selectedCustomer?.id === customer.id ? 'bg-secondary' : 'hover:bg-secondary/60'
                         }`}
                     >
-                        <input
-                            type="checkbox"
-                            aria-label={customer.name}
-                            checked={selectedIds.has(customer.id)}
-                            onClick={e => e.stopPropagation()}
-                            onChange={() => toggleSelected(customer.id)}
-                            className={`accent-primary w-4 h-4 mt-1 flex-shrink-0 transition-opacity ${selectedIds.size ? 'opacity-100' : 'opacity-30 group-hover:opacity-100 focus:opacity-100'}`}
-                        />
+                        <span className="relative flex-shrink-0 w-8 h-8">
+                            <span className={`absolute inset-0 transition-opacity ${selectedIds.size ? 'opacity-0' : 'group-hover:opacity-0'}`}><Avatar name={customer.name} /></span>
+                            <input
+                                type="checkbox"
+                                aria-label={customer.name}
+                                checked={selectedIds.has(customer.id)}
+                                onClick={e => e.stopPropagation()}
+                                onChange={() => toggleSelected(customer.id)}
+                                className={`absolute inset-0 m-auto accent-primary w-4 h-4 transition-opacity ${selectedIds.size ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus:opacity-100'}`}
+                            />
+                        </span>
                         <div className="flex-grow min-w-0">
-                            <div className="flex justify-between items-start gap-2">
-                                <div className="min-w-0">
-                                    <h3 className="font-semibold text-text-primary truncate">{customer.name}</h3>
-                                    <p className="text-sm text-text-secondary truncate">{customer.company}</p>
-                                </div>
-                                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${statusColors[customer.status].bg} ${statusColors[customer.status].text}`}>
-                                    {translateStatus(customer.status, language)}
-                                </span>
+                            <div className="flex justify-between items-center gap-2">
+                                <h3 className="text-sm font-medium text-text-primary truncate">{customer.name}</h3>
+                                {customer.dealValue ? <span className="text-xs text-text-secondary tabular-nums">${Math.round(customer.dealValue / 1000)}k</span> : null}
                             </div>
-                            <div className="flex items-center gap-2 mt-1 text-xs text-text-secondary">
-                                {customer.dealValue ? <span className="font-medium">${customer.dealValue.toLocaleString()}</span> : null}
-                                {since !== null && <span className={stale ? 'text-sky-600 dark:text-sky-400 font-medium' : ''}>{tf('lastContactAgo', language, { n: since })}</span>}
-                                {overdue && <span className="text-rose-600 dark:text-rose-400 font-semibold">● {t('todayView.overdue', language)}</span>}
-                                {dueToday && <span className="text-amber-600 dark:text-amber-400 font-semibold">● {t('todayView.dueToday', language)}</span>}
+                            <div className="flex items-center gap-1.5 text-xs text-text-secondary min-w-0">
+                                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${STATUS_DOT[customer.status]}`} title={translateStatus(customer.status, language)} />
+                                <span className="truncate">{customer.company}</span>
+                                <span className="ml-auto flex-shrink-0 whitespace-nowrap">
+                                    {overdue ? <span className="text-rose-600 dark:text-rose-400 font-medium">{t('todayView.overdue', language)}</span>
+                                    : dueToday ? <span className="text-amber-700 dark:text-amber-400 font-medium">{t('todayView.dueToday', language)}</span>
+                                    : since !== null ? <span className={stale ? 'text-sky-700 dark:text-sky-400 font-medium' : ''}>{tf('lastContactAgo', language, { n: since })}</span> : null}
+                                </span>
                             </div>
                         </div>
                     </li>
@@ -285,18 +291,19 @@ const ListView: React.FC<CustomerDashboardProps> = ({
             {/* Main Content (Details + AI) */}
             <div className={`
                 ${selectedCustomer ? 'flex' : 'hidden md:flex'}
-                flex-grow flex-col md:pl-6 min-w-0
+                flex-grow flex-col min-w-0
             `}>
                 {selectedCustomer ? (
-                <div className="flex gap-6 h-full min-w-0">
+                <div className="flex h-full min-w-0">
                     <div
                         key={`${selectedCustomer.id}-${language}`}
-                        className="flex-auto space-y-6 overflow-y-auto pr-2 min-w-0"
+                        className="flex-auto overflow-y-auto min-w-0"
                     >
+                      <div className="max-w-3xl mx-auto px-4 md:px-8 py-6 space-y-5">
                         {/* Back button for mobile */}
                         <button
                             onClick={() => onSelectCustomer(null)}
-                            className="md:hidden flex items-center gap-2 text-sm font-semibold text-text-secondary mb-2 hover:text-text-primary"
+                            className="md:hidden btn btn-ghost btn-sm -ml-2"
                             aria-label={t('allCustomers', language)}
                         >
                             <ArrowLeftIcon className="w-4 h-4" />
@@ -317,14 +324,15 @@ const ListView: React.FC<CustomerDashboardProps> = ({
                             language={language}
                         />
                         {!isLargeScreen && (
-                            <div className="h-[600px]">
+                            <div className="h-[600px] card overflow-hidden">
                                 <AIAssistant customer={selectedCustomer} language={language} onAddInteraction={onAddInteraction} onSetNextAction={onSetNextAction} />
                             </div>
                         )}
+                      </div>
                     </div>
                     {isLargeScreen && (
                     <aside
-                        className={`flex-shrink-0 transition-all duration-300 ease-in-out ${isAIAssistantOpen ? 'w-80 2xl:w-96' : 'w-0 opacity-0 pointer-events-none'}`}
+                        className={`flex-shrink-0 border-l border-border transition-all duration-200 ease-out ${isAIAssistantOpen ? 'w-80 2xl:w-96' : 'w-0 opacity-0 pointer-events-none border-l-0'}`}
                         aria-hidden={!isAIAssistantOpen}
                     >
                         <div className="h-full overflow-hidden">
@@ -334,10 +342,9 @@ const ListView: React.FC<CustomerDashboardProps> = ({
                     )}
                 </div>
                 ) : (
-                <div className="hidden md:flex flex-col items-center justify-center h-full text-text-secondary bg-surface rounded-lg border border-border">
-                    <p className="text-lg">{t('selectCustomerPrompt', language)}</p>
-                    <p className="text-sm mt-2">{t('or', language)}</p>
-                    <button onClick={onOpenAddCustomerModal} className="mt-4 px-4 py-2 bg-primary text-on-primary text-sm font-semibold rounded-md hover:bg-primary/90 transition active:scale-95">{t('addNewCustomer', language)}</button>
+                <div className="hidden md:flex flex-col items-center justify-center h-full text-text-secondary">
+                    <p className="text-sm">{t('selectCustomerPrompt', language)}</p>
+                    <button onClick={onOpenAddCustomerModal} className="btn btn-secondary mt-4"><PlusIcon className="w-4 h-4" />{t('addNewCustomer', language)}</button>
                 </div>
                 )}
             </div>
@@ -351,20 +358,20 @@ export const WelcomeScreen: React.FC<{
     onLoadDemo: () => void;
     language: 'en' | 'zh';
 }> = ({ onOpenAddCustomerModal, onOpenCapture, onLoadDemo, language }) => (
-    <div className="h-full flex flex-col items-center justify-center text-center p-8 bg-surface rounded-lg border border-border">
-        <div className="p-4 bg-primary/10 rounded-full mb-6">
-            <LightBulbIcon className="w-12 h-12 text-primary" />
+    <div className="h-full flex flex-col items-center justify-center text-center p-8">
+        <div className="p-3 bg-primary/10 rounded-xl mb-5">
+            <LightBulbIcon className="w-7 h-7 text-primary" />
         </div>
-        <h2 className="text-2xl font-bold text-text-primary">{t('welcome.title', language)}</h2>
-        <p className="mt-2 max-w-lg text-text-secondary">{t('welcome.message', language)}</p>
-        <div className="mt-8 flex flex-wrap justify-center gap-3">
-            <button onClick={onOpenAddCustomerModal} className="px-5 py-2.5 bg-primary text-on-primary font-semibold rounded-lg hover:bg-primary/90 transition active:scale-95">
+        <h2 className="text-lg font-semibold text-text-primary">{t('welcome.title', language)}</h2>
+        <p className="mt-2 max-w-md text-sm text-text-secondary">{t('welcome.message', language)}</p>
+        <div className="mt-6 flex flex-wrap justify-center gap-2">
+            <button onClick={onOpenAddCustomerModal} className="btn btn-primary h-9 px-4">
                 {t('welcome.cta', language)}
             </button>
-            <button onClick={onOpenCapture} className="px-5 py-2.5 border border-primary text-primary font-semibold rounded-lg hover:bg-primary/10 transition flex items-center gap-2">
-                <SparklesIcon className="w-5 h-5" />{t('capture.button', language)}
+            <button onClick={onOpenCapture} className="btn btn-secondary h-9 px-4">
+                <SparklesIcon className="w-4 h-4" />{t('capture.button', language)}
             </button>
-            <button onClick={onLoadDemo} className="px-5 py-2.5 bg-secondary font-semibold rounded-lg hover:bg-border transition">
+            <button onClick={onLoadDemo} className="btn btn-ghost h-9 px-4">
                 {t('emptyCloud.demo', language)}
             </button>
         </div>
@@ -411,134 +418,136 @@ const CustomerDetails: React.FC<{
         });
     }, [customer.interactions, typeFilter, startDateFilter, endDateFilter]);
 
+    const gmail = useGmail();
+    const [tab, setTab] = useState<'overview' | 'activity' | 'gmail'>('overview');
+    useEffect(() => setTab('overview'), [customer.id]);
+
+    const tabs = [
+        { key: 'overview' as const, label: t('shell.overview', language) },
+        { key: 'activity' as const, label: t('shell.activity', language), count: customer.interactions.length },
+        ...(gmail.status.available ? [{ key: 'gmail' as const, label: 'Gmail' }] : []),
+    ];
+
     return (
     <>
-        <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-            <h2 className="text-3xl font-bold text-text-primary">{customer.name}</h2>
-            <p className="text-text-secondary mt-1">
-                {customer.company}
-                {customer.email && <> &middot; <a href={`mailto:${customer.email}`} className="hover:text-primary hover:underline">{customer.email}</a></>}
-            </p>
+        <div className="flex flex-wrap items-start gap-4">
+            <Avatar name={customer.name} size="lg" />
+            <div className="flex-grow min-w-0">
+                <h2 className="text-xl font-semibold tracking-tight">{customer.name}</h2>
+                <p className="text-sm text-text-secondary mt-0.5 truncate">
+                    {customer.company}
+                    {customer.email && <> &middot; <a href={`mailto:${customer.email}`} className="hover:text-primary hover:underline">{customer.email}</a></>}
+                    {customer.dealValue ? <> &middot; <span className="text-text-primary font-medium">${customer.dealValue.toLocaleString()}</span></> : null}
+                </p>
+            </div>
+            <div className="flex items-center gap-1">
+                <label className="relative">
+                    <span className="sr-only">{t('filters.status', language)}</span>
+                    <span className={`absolute left-2.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full pointer-events-none ${STATUS_DOT[customer.status]}`} aria-hidden="true" />
+                    <select
+                        aria-label={t('filters.status', language)}
+                        value={customer.status}
+                        onChange={(e) => onUpdateCustomer(customer.id, { status: e.target.value as CustomerStatus })}
+                        className="btn btn-secondary pl-6 pr-2 appearance-none cursor-pointer"
+                    >
+                        {Object.values(CustomerStatus).map(status => (
+                            <option key={status} value={status}>{translateStatus(status, language)}</option>
+                        ))}
+                    </select>
+                </label>
+                <button onClick={onEditCustomer} className="btn btn-ghost btn-icon" title={t('editCustomer', language)} aria-label={t('editCustomer', language)}>
+                    <PencilIcon className="w-4 h-4" />
+                </button>
+                <button onClick={onDelete} className="btn btn-ghost btn-icon hover:text-rose-600" title={t('deleteCustomer', language)} aria-label={t('deleteCustomer', language)}>
+                    <TrashIcon className="w-4 h-4" />
+                </button>
+            </div>
         </div>
-        <div className="flex items-center gap-2">
-            <button
-                onClick={onDelete}
-                className="h-9 w-9 flex items-center justify-center rounded-full bg-surface border border-border text-text-secondary hover:text-rose-600 hover:bg-secondary transition-colors active:scale-95"
-                title={t('deleteCustomer', language)}
-                aria-label={t('deleteCustomer', language)}
-            >
-                <TrashIcon className="w-5 h-5" />
-            </button>
-            <button 
-                onClick={onEditCustomer} 
-                className="h-9 w-9 flex items-center justify-center rounded-full bg-surface border border-border text-text-secondary hover:bg-secondary transition-colors active:scale-95"
-                title={t('editCustomer', language)}
-                aria-label={t('editCustomer', language)}
-            >
-                <PencilIcon className="w-5 h-5" />
-            </button>
-            <select
-                aria-label={t('filters.status', language)}
-                value={customer.status}
-                onChange={(e) => onUpdateCustomer(customer.id, { status: e.target.value as CustomerStatus })}
-                className={`text-sm font-semibold px-3 py-1.5 rounded-md border-2 outline-none appearance-none focus:ring-2 focus:ring-primary/50 transition-all ${statusColors[customer.status].dropdown}`}
-            >
-                {Object.values(CustomerStatus).map(status => (
-                    <option key={status} value={status} className="bg-surface text-text-primary font-medium">{translateStatus(status, language)}</option>
-                ))}
-            </select>
-        </div>
-        </div>
-        
+
         <InteractionLogger customer={customer} onAddInteraction={onAddInteraction} onUpdateCustomer={onUpdateCustomer} onSetNextAction={onSetNextAction} language={language} />
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <NextActionCard
-                customer={customer}
-                language={language}
-                onComplete={() => onCompleteAction(customer.id)}
-                onSnooze={days => onSnooze(customer.id, days)}
-                onSet={action => onSetNextAction(customer.id, action)}
-            />
-            <KeyContactsCard contacts={customer.keyContacts} language={language} />
-        </div>
+        <Tabs tabs={tabs} active={tab} onChange={setTab} label={customer.name} />
 
-        <GmailPanel customer={customer} language={language} onAddInteraction={onAddInteraction} onSetNextAction={(id, a) => onSetNextAction(id, a)} />
-
-        <CustomerProfileCard customer={customer} language={language} />
-
-        <div className="bg-surface p-4 rounded-lg border border-border">
-        <h3 className="text-xl font-bold text-text-primary mb-4">{t('interactionHistory', language)}</h3>
-        
-        {/* Filters */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4 p-3 bg-secondary/50 rounded-lg">
-            <div>
-                <label className="text-xs font-medium text-text-secondary">{t('filters.type', language)}</label>
-                <select
-                    value={typeFilter}
-                    onChange={e => setTypeFilter(e.target.value)}
-                    className="w-full mt-1 bg-surface border border-border rounded-md py-1.5 px-2 text-sm focus:ring-2 focus:ring-primary/50 outline-none transition"
-                >
-                    <option value="all">{t('filters.all', language)}</option>
-                    {Object.values(InteractionType).map(it => <option key={it} value={it}>{translateInteractionType(it, language)}</option>)}
-                </select>
-            </div>
-            <div className="lg:col-span-2">
-                <label className="text-xs font-medium text-text-secondary">{t('filters.dateRange', language)}</label>
-                <div className="flex items-center gap-2 mt-1">
-                     <input
-                        type="date"
-                        value={startDateFilter}
-                        onChange={e => setStartDateFilter(e.target.value)}
-                        className="w-full bg-surface border border-border rounded-md py-1.5 px-2 text-sm focus:ring-2 focus:ring-primary/50 outline-none transition"
-                        aria-label={t('filters.from', language)}
+        {tab === 'overview' && (
+            <div className="space-y-4">
+                <div className="grid grid-cols-1 2xl:grid-cols-2 gap-4">
+                    <NextActionCard
+                        customer={customer}
+                        language={language}
+                        onComplete={() => onCompleteAction(customer.id)}
+                        onSnooze={days => onSnooze(customer.id, days)}
+                        onSet={action => onSetNextAction(customer.id, action)}
                     />
-                     <span className="text-text-secondary">-</span>
-                     <input
-                        type="date"
-                        value={endDateFilter}
-                        onChange={e => setEndDateFilter(e.target.value)}
-                        min={startDateFilter}
-                        className="w-full bg-surface border border-border rounded-md py-1.5 px-2 text-sm focus:ring-2 focus:ring-primary/50 outline-none transition"
-                        aria-label={t('filters.to', language)}
-                    />
+                    <KeyContactsCard contacts={customer.keyContacts} language={language} />
+                </div>
+                <CustomerProfileCard customer={customer} language={language} />
+                <div className="card">
+                    <div className="flex items-center justify-between px-4 pt-3">
+                        <h3 className="card-title">{t('shell.recent', language)}</h3>
+                        {customer.interactions.length > 3 && (
+                            <button onClick={() => setTab('activity')} className="btn btn-ghost btn-sm">{t('shell.viewAll', language)} →</button>
+                        )}
+                    </div>
+                    <InteractionTable interactions={customer.interactions.slice(0, 3)} language={language} />
                 </div>
             </div>
-        </div>
+        )}
 
-        <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-                <thead className="border-b border-border text-text-secondary">
-                    <tr>
-                        <th className="font-semibold p-2">{t('table.date', language)}</th>
-                        <th className="font-semibold p-2">{t('table.type', language)}</th>
-                        <th className="font-semibold p-2">{t('table.summary', language)}</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {filteredInteractions.length > 0 ? filteredInteractions.map(interaction => (
-                    <tr key={interaction.id} className="border-b border-border last:border-b-0 hover:bg-secondary">
-                        <td className="p-2 whitespace-nowrap text-text-secondary">{formatDate(interaction.date, language)}{interaction.source === 'gmail' && <span className="ml-1 text-rose-500" title="Gmail">✉</span>}</td>
-                        <td className="p-2">
-                            <span className="font-semibold text-primary whitespace-nowrap">{translateInteractionType(interaction.type, language)}</span>
-                        </td>
-                        <td className="p-2 text-text-primary whitespace-pre-wrap">{interaction.summary}</td>
-                    </tr>
-                    )) : (
-                    <tr>
-                        <td colSpan={3} className="p-4 text-center text-text-secondary">
-                            {t('noInteractions', language)}
-                        </td>
-                    </tr>
-                    )}
-                </tbody>
-            </table>
-        </div>
-        </div>
+        {tab === 'activity' && (
+            <div className="space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
+                    <select
+                        value={typeFilter}
+                        onChange={e => setTypeFilter(e.target.value)}
+                        aria-label={t('filters.type', language)}
+                        className="input w-auto"
+                    >
+                        <option value="all">{t('filters.all', language)}</option>
+                        {Object.values(InteractionType).map(it => <option key={it} value={it}>{translateInteractionType(it, language)}</option>)}
+                    </select>
+                    <input type="date" value={startDateFilter} onChange={e => setStartDateFilter(e.target.value)} className="input w-auto" aria-label={t('filters.from', language)} />
+                    <span className="text-text-secondary text-sm">–</span>
+                    <input type="date" value={endDateFilter} onChange={e => setEndDateFilter(e.target.value)} min={startDateFilter} className="input w-auto" aria-label={t('filters.to', language)} />
+                </div>
+                <div className="card">
+                    <InteractionTable interactions={filteredInteractions} language={language} />
+                </div>
+            </div>
+        )}
+
+        {tab === 'gmail' && (
+            <GmailPanel customer={customer} language={language} onAddInteraction={onAddInteraction} onSetNextAction={(id, a) => onSetNextAction(id, a)} />
+        )}
     </>
     );
 };
+
+const InteractionTable: React.FC<{ interactions: Interaction[]; language: 'en' | 'zh' }> = ({ interactions, language }) => (
+    <div className="overflow-x-auto">
+        <table className="w-full text-left text-sm">
+            <thead className="text-xs text-text-secondary">
+                <tr className="border-b border-border">
+                    <th className="font-medium px-4 py-2 w-32">{t('table.date', language)}</th>
+                    <th className="font-medium px-4 py-2 w-24">{t('table.type', language)}</th>
+                    <th className="font-medium px-4 py-2">{t('table.summary', language)}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {interactions.length > 0 ? interactions.map(interaction => (
+                <tr key={interaction.id} className="border-b border-border last:border-b-0 align-top">
+                    <td className="px-4 py-2.5 whitespace-nowrap text-text-secondary tabular-nums">{formatDate(interaction.date, language)}{interaction.source === 'gmail' && <span className="ml-1 text-rose-500" title="Gmail">✉</span>}</td>
+                    <td className="px-4 py-2.5"><span className="chip">{translateInteractionType(interaction.type, language)}</span></td>
+                    <td className="px-4 py-2.5 text-text-primary whitespace-pre-wrap">{interaction.summary}</td>
+                </tr>
+                )) : (
+                <tr>
+                    <td colSpan={3} className="px-4 py-6 text-center text-text-secondary">{t('noInteractions', language)}</td>
+                </tr>
+                )}
+            </tbody>
+        </table>
+    </div>
+);
 
 const NextActionCard: React.FC<{
     customer: Customer;
@@ -561,19 +570,19 @@ const NextActionCard: React.FC<{
 
     const dueTone = !action?.dueDate ? 'text-text-secondary'
         : action.dueDate < today ? 'text-rose-600 dark:text-rose-400'
-        : action.dueDate === today ? 'text-amber-600 dark:text-amber-400'
+        : action.dueDate === today ? 'text-amber-700 dark:text-amber-400'
         : 'text-text-secondary';
     const dueLabel = !action?.dueDate ? '' 
         : action.dueDate < today ? tf('nextActionCard.overdueBy', language, { n: daysBetween(action.dueDate, today) })
         : action.dueDate === today ? t('nextActionCard.dueTodayLabel', language)
         : friendlyDate(action.dueDate, language);
 
-    const smallBtn = 'text-xs px-2 py-1 rounded-md font-semibold transition active:scale-95';
+    const smallBtn = 'btn btn-sm';
 
     return (
-    <div className="bg-surface p-4 rounded-lg border border-border">
+    <div className="card p-4">
         <div className="flex items-center justify-between mb-2">
-            <h4 className="font-semibold text-text-primary">{t('nextAction', language)}</h4>
+            <h4 className="card-title">{t('nextAction', language)}</h4>
             {!editing && (
                 <button onClick={startEdit} className="p-1 rounded text-text-secondary hover:bg-secondary" aria-label={t('nextActionCard.edit', language)} title={t('nextActionCard.edit', language)}>
                     <PencilIcon className="w-4 h-4" />
@@ -589,32 +598,32 @@ const NextActionCard: React.FC<{
                     setEditing(false);
                 }}
             >
-                <textarea autoFocus value={desc} onChange={e => setDesc(e.target.value)} rows={2} className="w-full bg-secondary rounded-md p-2 text-sm focus:ring-2 focus:ring-primary/50 outline-none" />
+                <textarea autoFocus value={desc} onChange={e => setDesc(e.target.value)} rows={2} className="input" />
                 <div className="flex gap-2 items-center">
-                    <input type="date" value={due} onChange={e => setDue(e.target.value)} className="bg-secondary rounded-md p-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/50" />
-                    <button type="submit" className={`${smallBtn} bg-primary text-on-primary hover:bg-primary/90`}>{t('closeReason.save', language)}</button>
-                    <button type="button" onClick={() => setEditing(false)} className={`${smallBtn} bg-secondary hover:bg-border`}>{t('modal.cancel', language)}</button>
+                    <input type="date" value={due} onChange={e => setDue(e.target.value)} className="input w-auto" />
+                    <button type="submit" className={`${smallBtn} btn-primary`}>{t('closeReason.save', language)}</button>
+                    <button type="button" onClick={() => setEditing(false)} className={`${smallBtn} btn-secondary`}>{t('modal.cancel', language)}</button>
                 </div>
             </form>
         ) : action ? (
             <div>
-                <p className="text-text-primary">{action.description}</p>
+                <p className="text-sm text-text-primary">{action.description}</p>
                 {dueLabel && (
-                    <div className={`flex items-center gap-2 mt-2 text-sm font-medium ${dueTone}`}>
+                    <div className={`flex items-center gap-1.5 mt-1.5 text-xs font-medium ${dueTone}`}>
                         <CalendarIcon className="w-4 h-4" />
                         <span>{dueLabel}</span>
                     </div>
                 )}
                 <div className="flex flex-wrap gap-2 mt-3">
-                    <button onClick={onComplete} className={`${smallBtn} bg-primary text-on-primary hover:bg-primary/90 flex items-center gap-1`}><CheckIcon className="w-3.5 h-3.5" />{t('nextActionCard.complete', language)}</button>
-                    <button onClick={() => onSnooze(1)} className={`${smallBtn} bg-secondary hover:bg-border`}>{t('nextActionCard.snooze', language)}</button>
-                    <button onClick={() => onSnooze(7)} className={`${smallBtn} bg-secondary hover:bg-border`}>{t('nextActionCard.snoozeWeek', language)}</button>
+                    <button onClick={onComplete} className={`${smallBtn} btn-primary flex items-center gap-1`}><CheckIcon className="w-3.5 h-3.5" />{t('nextActionCard.complete', language)}</button>
+                    <button onClick={() => onSnooze(1)} className={`${smallBtn} btn-secondary`}>{t('nextActionCard.snooze', language)}</button>
+                    <button onClick={() => onSnooze(7)} className={`${smallBtn} btn-secondary`}>{t('nextActionCard.snoozeWeek', language)}</button>
                 </div>
             </div>
         ) : (
             <div>
                 <p className="text-text-secondary text-sm">{t('noNextAction', language)}</p>
-                <button onClick={startEdit} className={`${smallBtn} mt-2 bg-primary text-on-primary hover:bg-primary/90`}>{t('todayView.setAction', language)}</button>
+                <button onClick={startEdit} className={`${smallBtn} mt-2 btn-primary`}>{t('todayView.setAction', language)}</button>
             </div>
         )}
     </div>
@@ -622,17 +631,18 @@ const NextActionCard: React.FC<{
 };
 
 const KeyContactsCard: React.FC<{ contacts?: KeyContact[], language: 'en' | 'zh' }> = ({ contacts, language }) => (
-    <div className="bg-surface p-4 rounded-lg border border-border">
+    <div className="card p-4">
         <div className="flex items-center gap-2 mb-2">
-             <IdentificationIcon className="w-5 h-5 text-text-secondary" />
-             <h4 className="font-semibold text-text-primary">{t('keyContacts', language)}</h4>
+             <IdentificationIcon className="w-4 h-4 text-text-secondary" />
+             <h4 className="card-title">{t('keyContacts', language)}</h4>
         </div>
         {contacts && contacts.length > 0 ? (
-            <ul className="space-y-1">
+            <ul className="space-y-2">
                 {contacts.map(contact => (
-                    <li key={contact.id} className="text-sm">
+                    <li key={contact.id} className="text-sm flex items-center gap-2">
+                        <Avatar name={contact.name} size="sm" />
                         <span className="font-medium text-text-primary">{contact.name}</span>
-                        <span className="text-text-secondary"> - {contact.title}</span>
+                        <span className="text-text-secondary text-xs">{contact.title}</span>
                     </li>
                 ))}
             </ul>
@@ -643,18 +653,18 @@ const KeyContactsCard: React.FC<{ contacts?: KeyContact[], language: 'en' | 'zh'
 );
 
 const CustomerProfileCard: React.FC<{customer: Customer, language: 'en' | 'zh'}> = ({ customer, language }) => (
-    <div className="bg-surface p-4 rounded-lg border border-border">
+    <div className="card p-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
             <div>
-                <h5 className="text-sm font-semibold text-text-secondary mb-1">{t('dealValue', language)}</h5>
-                <p className="text-lg font-bold text-primary">{customer.dealValue ? `$${customer.dealValue.toLocaleString()}` : 'N/A'}</p>
+                <h5 className="text-xs font-medium text-text-secondary mb-1">{t('dealValue', language)}</h5>
+                <p className="text-base font-semibold tabular-nums">{customer.dealValue ? `$${customer.dealValue.toLocaleString()}` : 'N/A'}</p>
             </div>
              <div>
-                <h5 className="text-sm font-semibold text-text-secondary mb-1">{t('knownCompetitors', language)}</h5>
+                <h5 className="text-xs font-medium text-text-secondary mb-1">{t('knownCompetitors', language)}</h5>
                 <p className="text-sm text-text-primary">{customer.competitors?.join(', ') || t('notAvailable', language)}</p>
             </div>
             <div className="md:col-span-2">
-                <h5 className="text-sm font-semibold text-text-secondary mb-1">{t('customerPainPoints', language)}</h5>
+                <h5 className="text-xs font-medium text-text-secondary mb-1">{t('customerPainPoints', language)}</h5>
                 {customer.customerPainPoints && customer.customerPainPoints.length > 0 ? (
                     <ul className="list-disc list-inside space-y-1">
                        {customer.customerPainPoints.map((point, index) => (
@@ -781,69 +791,66 @@ const InteractionLogger: React.FC<{
     setListening(true);
   };
 
-  const chip = 'text-xs px-2 py-1 bg-secondary rounded-md hover:bg-border transition active:scale-95';
-
   return (
-    <form onSubmit={handleSubmit} className="bg-surface p-4 rounded-lg border border-border">
-      <h3 className="text-lg font-bold text-text-primary mb-2">{t('logNewInteraction', language)}</h3>
+    <form onSubmit={handleSubmit} className="card overflow-hidden focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/15 transition" aria-label={t('logNewInteraction', language)}>
       <textarea
         id="interaction-log-input"
         value={summary}
         onChange={e => setSummary(e.target.value)}
         onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSubmit(); }}
-        placeholder={t('logInteractionPlaceholder', language)}
+        placeholder={`${t('logNewInteraction', language)} — ${t('logInteractionPlaceholder', language)}`}
         aria-label={t('logNewInteraction', language)}
-        className="w-full bg-secondary rounded-md p-3 text-sm focus:ring-2 focus:ring-primary/50 outline-none transition"
-        rows={3}
+        className="block w-full bg-transparent px-4 pt-3 pb-1 text-sm outline-none focus-visible:outline-none resize-none placeholder:text-text-secondary/70"
+        rows={2}
       />
-      <div className="flex items-center gap-2 mt-2 flex-wrap">
-          <button type="button" onClick={() => handleQuickLog('followUp', InteractionType.EMAIL)} className={chip}>{t('quickLog.followUp', language)}</button>
-          <button type="button" onClick={() => handleQuickLog('voicemail', InteractionType.CALL)} className={chip}>{t('quickLog.voicemail', language)}</button>
-          <button type="button" onClick={() => handleQuickLog('meetingScheduled', InteractionType.MEETING)} className={chip}>{t('quickLog.meetingScheduled', language)}</button>
+      <div className="flex items-center gap-1.5 px-3 pb-2 flex-wrap">
+          <button type="button" onClick={() => handleQuickLog('followUp', InteractionType.EMAIL)} className="btn btn-sm btn-ghost border border-dashed border-border">{t('quickLog.followUp', language)}</button>
+          <button type="button" onClick={() => handleQuickLog('voicemail', InteractionType.CALL)} className="btn btn-sm btn-ghost border border-dashed border-border">{t('quickLog.voicemail', language)}</button>
+          <button type="button" onClick={() => handleQuickLog('meetingScheduled', InteractionType.MEETING)} className="btn btn-sm btn-ghost border border-dashed border-border">{t('quickLog.meetingScheduled', language)}</button>
       </div>
 
-      {aiError && <p role="alert" className="text-sm text-rose-600 dark:text-rose-400 mt-2">{aiError}</p>}
+      {aiError && <p role="alert" className="text-sm text-rose-600 dark:text-rose-400 px-4 pb-2">{aiError}</p>}
 
       {aiResult && (
-        <div className="mt-3 p-3 rounded-md border border-primary/40 bg-primary/5 space-y-2 text-sm">
-          <p className="font-semibold flex items-center gap-1 text-primary"><SparklesIcon className="w-4 h-4" />{t('logger.aiResult', language)}</p>
-          <p><span className="font-semibold">{translateInteractionType(aiResult.type, language)}</span> · {aiResult.summary}</p>
+        <div className="mx-3 mb-3 p-3 rounded-md border border-primary/30 bg-primary/5 space-y-1.5 text-sm">
+          <p className="text-xs font-medium flex items-center gap-1 text-primary"><SparklesIcon className="w-3.5 h-3.5" />{t('logger.aiResult', language)}</p>
+          <p><span className="chip mr-1.5">{translateInteractionType(aiResult.type, language)}</span>{aiResult.summary}</p>
           {aiResult.nextActionDescription && (
-            <p className="flex items-center gap-1"><CalendarIcon className="w-4 h-4 text-text-secondary" />{aiResult.nextActionDescription} {aiResult.nextActionDueDate && <span className="text-text-secondary">({aiResult.nextActionDueDate})</span>}</p>
+            <p className="flex items-center gap-1.5"><CalendarIcon className="w-4 h-4 text-text-secondary" />{aiResult.nextActionDescription} {aiResult.nextActionDueDate && <span className="text-text-secondary">({aiResult.nextActionDueDate})</span>}</p>
           )}
           {!!aiResult.newPainPoints?.length && <p><span className="text-text-secondary">{t('customerPainPoints', language)}:</span> {aiResult.newPainPoints.join('、')}</p>}
           {!!aiResult.newCompetitors?.length && <p><span className="text-text-secondary">{t('knownCompetitors', language)}:</span> {aiResult.newCompetitors.join('、')}</p>}
           <div className="flex gap-2 pt-1">
-            <button type="button" onClick={applyAll} className="px-3 py-1.5 bg-primary text-on-primary text-xs font-semibold rounded-md hover:bg-primary/90 active:scale-95">{t('logger.saveAll', language)}</button>
-            <button type="button" onClick={() => { setSummary(aiResult.summary); setType(aiResult.type); setAiResult(null); }} className="px-3 py-1.5 bg-secondary text-xs font-semibold rounded-md hover:bg-border">{t('logger.applySummary', language)}</button>
-            <button type="button" onClick={() => setAiResult(null)} className="px-3 py-1.5 text-xs font-semibold rounded-md hover:bg-secondary">{t('modal.cancel', language)}</button>
+            <button type="button" onClick={applyAll} className="btn btn-sm btn-primary">{t('logger.saveAll', language)}</button>
+            <button type="button" onClick={() => { setSummary(aiResult.summary); setType(aiResult.type); setAiResult(null); }} className="btn btn-sm btn-secondary">{t('logger.applySummary', language)}</button>
+            <button type="button" onClick={() => setAiResult(null)} className="btn btn-sm btn-ghost">{t('modal.cancel', language)}</button>
           </div>
         </div>
       )}
 
-      <div className="flex justify-between items-center mt-3 gap-2 flex-wrap">
-        <div className="flex items-center gap-2">
+      <div className="flex justify-between items-center gap-2 flex-wrap px-3 py-2 border-t border-border bg-secondary/40">
+        <div className="flex items-center gap-1">
           <select
             value={type}
             onChange={e => setType(e.target.value as InteractionType)}
             aria-label={t('table.type', language)}
-            className="bg-secondary rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-primary/50 outline-none transition"
+            className="btn btn-sm btn-ghost bg-transparent pr-1 cursor-pointer"
           >
             {Object.values(InteractionType).map(it => (
               <option key={it} value={it}>{translateInteractionType(it, language)}</option>
             ))}
           </select>
-          <button type="button" onClick={toggleDictation} className={`px-3 py-2 text-sm rounded-md flex items-center gap-1 transition ${listening ? 'bg-rose-500 text-white animate-pulse' : 'bg-secondary hover:bg-border'}`} title={t('logger.dictate', language)}>
+          <button type="button" onClick={toggleDictation} className={`btn btn-sm ${listening ? 'bg-rose-500 text-white animate-pulse' : 'btn-ghost'}`} title={t('logger.dictate', language)}>
             <MicrophoneIcon className="w-4 h-4" />
             <span className="hidden sm:inline">{t(listening ? 'logger.stopDictate' : 'logger.dictate', language)}</span>
           </button>
         </div>
-        <div className="flex items-center gap-2">
-          <button type="button" onClick={organize} disabled={!summary.trim() || organizing} className="px-3 py-2 text-sm font-semibold rounded-md border border-primary text-primary hover:bg-primary/10 transition disabled:opacity-50 flex items-center gap-1">
+        <div className="flex items-center gap-1.5">
+          <button type="button" onClick={organize} disabled={!summary.trim() || organizing} className="btn btn-sm btn-ghost text-primary">
             <SparklesIcon className="w-4 h-4" />
             {t(organizing ? 'logger.organizing' : 'logger.organize', language)}
           </button>
-          <button type="submit" className="px-4 py-2 bg-primary text-on-primary text-sm font-semibold rounded-md hover:bg-primary/90 transition disabled:opacity-50 flex items-center gap-2 active:scale-95" disabled={!summary.trim()}>
+          <button type="submit" className="btn btn-sm btn-primary" disabled={!summary.trim()}>
             {t('logInteraction', language)}
           </button>
         </div>
@@ -861,21 +868,21 @@ const BulkBar: React.FC<{
     onFollowUp: () => void;
     onDelete: () => void;
 }> = ({ count, language, onSelectAll, onClear, onStatus, onFollowUp, onDelete }) => (
-    <div className="p-2 border-b border-border bg-primary/5 flex flex-wrap items-center gap-2 text-xs">
+    <div className="px-3 py-2 border-b border-border bg-primary/5 flex flex-wrap items-center gap-1.5 text-xs">
         <span className="font-semibold text-primary">{tf('bulk.selected', language, { n: count })}</span>
         <select
             value=""
             onChange={e => { if (e.target.value) onStatus(e.target.value as CustomerStatus); }}
-            className="bg-surface border border-border rounded-md px-1.5 py-1"
+            className="btn btn-sm btn-secondary cursor-pointer"
             aria-label={t('bulk.setStatus', language)}
         >
             <option value="">{t('bulk.setStatus', language)}</option>
             {Object.values(CustomerStatus).map(s => <option key={s} value={s}>{translateStatus(s, language)}</option>)}
         </select>
-        <button onClick={onFollowUp} className="px-2 py-1 rounded-md bg-surface border border-border hover:bg-secondary">{t('bulk.followUp', language)}</button>
-        <button onClick={onSelectAll} className="px-2 py-1 rounded-md hover:bg-secondary">{t('bulk.selectAll', language)}</button>
-        <button onClick={onClear} className="px-2 py-1 rounded-md hover:bg-secondary">{t('bulk.clear', language)}</button>
-        <button onClick={onDelete} className="px-2 py-1 rounded-md text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10 ml-auto">{t('bulk.delete', language)}</button>
+        <button onClick={onFollowUp} className="btn btn-sm btn-secondary">{t('bulk.followUp', language)}</button>
+        <button onClick={onSelectAll} className="btn btn-sm btn-ghost">{t('bulk.selectAll', language)}</button>
+        <button onClick={onClear} className="btn btn-sm btn-ghost">{t('bulk.clear', language)}</button>
+        <button onClick={onDelete} className="btn btn-sm btn-ghost text-rose-600 dark:text-rose-400 ml-auto">{t('bulk.delete', language)}</button>
     </div>
 );
 

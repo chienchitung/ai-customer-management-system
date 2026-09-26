@@ -5,6 +5,7 @@ import { t, translateStatus } from '../localization';
 import { todayISO } from '../lib/dates';
 import { formatDate } from '../lib/format';
 import { PencilIcon, PlusIcon } from './icons';
+import { Avatar, STATUS_DOT } from './ui';
 
 interface KanbanBoardProps {
     customers: Customer[];
@@ -16,13 +17,9 @@ interface KanbanBoardProps {
     onSelectCustomer: (id: string | null) => void;
 }
 
-const columnStyles: { [key in CustomerStatus]: { bg: string; dot: string; } } = {
-  [CustomerStatus.LEAD]: { bg: 'bg-slate-100 dark:bg-slate-800/50', dot: 'bg-slate-400' },
-  [CustomerStatus.PROSPECT]: { bg: 'bg-blue-100/50 dark:bg-blue-900/20', dot: 'bg-blue-500' },
-  [CustomerStatus.NEGOTIATION]: { bg: 'bg-amber-100/50 dark:bg-amber-900/20', dot: 'bg-amber-500' },
-  [CustomerStatus.CLOSED_WON]: { bg: 'bg-green-100/50 dark:bg-green-900/20', dot: 'bg-green-500' },
-  [CustomerStatus.CLOSED_LOST]: { bg: 'bg-rose-100/50 dark:bg-rose-900/20', dot: 'bg-rose-500' },
-};
+const columnStyles = Object.fromEntries(
+  Object.values(CustomerStatus).map(s => [s, { bg: 'bg-secondary/50', dot: STATUS_DOT[s] }]),
+) as Record<CustomerStatus, { bg: string; dot: string }>;
 
 const KanbanBoard: React.FC<KanbanBoardProps> = ({ 
     customers, 
@@ -71,7 +68,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
 
     return (
         <div 
-            className="flex gap-4 overflow-x-auto p-1 h-full"
+            className="flex gap-3 overflow-x-auto p-4 md:p-6 h-full"
             onDragOver={(e) => e.preventDefault()}
         >
             {columns.map(status => {
@@ -79,14 +76,14 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
                 return (
                     <div
                         key={status}
-                        className={`w-72 flex-shrink-0 rounded-lg flex flex-col ${columnStyles[status].bg}`}
+                        className={`w-72 flex-shrink-0 rounded-lg flex flex-col border border-border ${columnStyles[status].bg}`}
                         onDragOver={(e) => { e.preventDefault(); }}
                         onDrop={handleDrop}
                     >
                         <div className="p-3 sticky top-0 z-10 flex justify-between items-center">
                             <div className="flex items-center gap-2">
                                 <span className={`w-2 h-2 rounded-full ${columnStyles[status].dot}`}></span>
-                                <h3 className="font-semibold text-text-primary text-sm">
+                                <h3 className="font-medium text-text-primary text-sm">
                                     {translateStatus(status, language)}
                                 </h3>
                                 <span className="text-sm font-medium text-text-secondary">{customersInColumn.length}</span>
@@ -120,26 +117,27 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
                                         e.stopPropagation();
                                         handleDragOver(e, status, index);
                                     }}
-                                    className={`bg-surface p-2.5 rounded-md border cursor-pointer active:cursor-grabbing transition-all duration-150 shadow-sm ${draggedItem?.id === customer.id ? 'opacity-40 rotate-2 shadow-lg' : ''} ${selectedCustomerId === customer.id ? 'border-primary ring-1 ring-primary' : 'border-border'}`}
+                                    className={`bg-surface p-2.5 rounded-md border cursor-pointer active:cursor-grabbing transition-all duration-150 shadow-sm hover:shadow ${draggedItem?.id === customer.id ? 'opacity-40 rotate-2 shadow-lg' : ''} ${selectedCustomerId === customer.id ? 'border-primary ring-1 ring-primary/40' : 'border-border'}`}
                                 >
-                                    <div className="flex items-start gap-2">
+                                    <div className="flex items-start gap-2 relative group/card">
+                                        <Avatar name={customer.name} size="sm" />
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 onEditCustomer(customer);
                                             }}
-                                            className="p-1 rounded text-text-secondary hover:bg-secondary"
+                                            className="btn btn-ghost btn-icon btn-sm w-6 h-6 absolute -top-1 -right-1 opacity-0 group-hover/card:opacity-100 focus:opacity-100"
                                             aria-label={`${t('editCustomer', language)}: ${customer.name}`}
                                         >
-                                            <PencilIcon className="w-4 h-4" />
+                                            <PencilIcon className="w-3.5 h-3.5" />
                                         </button>
                                         <div className="flex-grow min-w-0">
                                             <h4 className="font-medium text-sm text-text-primary truncate">{customer.name}</h4>
                                             <p className="text-xs text-text-secondary truncate">{customer.company}</p>
                                             <div className="flex items-center gap-2 mt-1 text-xs">
-                                                {customer.dealValue ? <span className="font-semibold text-primary">${customer.dealValue.toLocaleString()}</span> : null}
+                                                {customer.dealValue ? <span className="font-medium tabular-nums">${customer.dealValue.toLocaleString()}</span> : null}
                                                 {customer.nextAction?.dueDate && (
-                                                    <span className={customer.nextAction.dueDate < today ? 'text-rose-600 dark:text-rose-400 font-semibold' : customer.nextAction.dueDate === today ? 'text-amber-600 dark:text-amber-400 font-semibold' : 'text-text-secondary'}>
+                                                    <span className={customer.nextAction.dueDate < today ? 'text-rose-600 dark:text-rose-400 font-medium' : customer.nextAction.dueDate === today ? 'text-amber-700 dark:text-amber-400 font-medium' : 'text-text-secondary'}>
                                                         {formatDate(customer.nextAction.dueDate, language)}
                                                     </span>
                                                 )}
@@ -168,7 +166,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
                             )}
                         </div>
                         <div className="px-2 pt-1 pb-2">
-                             <button onClick={onOpenAddCustomerModal} className="w-full text-left text-sm font-medium text-text-secondary hover:bg-black/5 dark:hover:bg-white/10 p-2 rounded-md flex items-center gap-2 transition-colors">
+                             <button onClick={onOpenAddCustomerModal} className="btn btn-ghost btn-sm w-full justify-start">
                                 <PlusIcon className="w-4 h-4" />
                                 {t('addNewCustomer', language)}
                             </button>

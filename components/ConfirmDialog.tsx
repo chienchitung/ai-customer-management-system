@@ -36,13 +36,13 @@ export const ConfirmProvider: React.FC<{ language: 'en' | 'zh'; children: React.
       <Modal size="sm" isOpen={!!state} onClose={() => close(false)} title={t('confirm.title', language)}>
         <p className="text-sm text-text-primary whitespace-pre-wrap">{state?.message}</p>
         <div className="flex justify-end gap-2 mt-6">
-          <button onClick={() => close(false)} className="px-4 py-2 bg-secondary text-text-primary text-sm font-semibold rounded-md hover:bg-border transition">
+          <button onClick={() => close(false)} className="btn btn-secondary">
             {t('confirm.cancel', language)}
           </button>
           <button
             autoFocus
             onClick={() => close(true)}
-            className={`px-4 py-2 text-sm font-semibold rounded-md transition active:scale-95 ${state?.options.danger ? 'bg-rose-600 hover:bg-rose-700 text-white' : 'bg-primary hover:bg-primary/90 text-on-primary'}`}
+            className={`btn ${state?.options.danger ? 'btn-danger' : 'btn-primary'}`}
           >
             {state?.options.confirmLabel ?? t('confirm.ok', language)}
           </button>

@@ -9,7 +9,8 @@ import { useToast } from './components/Toast';
 import { ConfirmProvider, useConfirm } from './components/ConfirmDialog';
 import AuthScreen from './components/AuthScreen';
 import { BottomNav, SettingsMenu, SyncBadge } from './components/AppChrome';
-import { ViewListIcon, ViewGridIcon, PlusIcon, ChatbotIcon, SparklesIcon } from './components/icons';
+import { CommandPalette, Sidebar } from './components/Shell';
+import { ViewListIcon, ViewGridIcon, PlusIcon, ChatbotIcon, SparklesIcon, SearchIcon } from './components/icons';
 import { useAuth } from './hooks/useAuth';
 import { useCustomerStore } from './hooks/useCustomerStore';
 import { GmailProvider, useGmailState } from './hooks/useGmail';
@@ -23,7 +24,6 @@ import { Prefs, loadPrefs, savePrefs, exportJSON, exportCSV, downloadFile, parse
 
 export { generateId };
 
-type MainView = Prefs['mainView'];
 
 const isClosed = (s: CustomerStatus) => s === CustomerStatus.CLOSED_WON || s === CustomerStatus.CLOSED_LOST;
 
@@ -105,6 +105,7 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
   const [closePrompt, setClosePrompt] = useState<{ id: string; status: CustomerStatus } | null>(null);
   const [completeId, setCompleteId] = useState<string | null>(null);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
+  const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -312,10 +313,15 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
     { label: t('data.resetDemo', language), onClick: resetDemo, danger: true },
   ];
 
-  const anyModalOpen = isCustomerModalOpen || isCaptureOpen || !!closePrompt || !!completeId || isShortcutsOpen;
+  const anyModalOpen = isCustomerModalOpen || isCaptureOpen || !!closePrompt || !!completeId || isShortcutsOpen || isPaletteOpen;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsPaletteOpen(open => !open);
+        return;
+      }
       if (e.metaKey || e.ctrlKey || e.altKey || anyModalOpen || isTypingTarget(e.target)) return;
       const focus = (id: string) => setTimeout(() => document.getElementById(id)?.focus(), 50);
       switch (e.key) {
@@ -332,131 +338,156 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
     return () => window.removeEventListener('keydown', onKey);
   }, [anyModalOpen, selectedCustomerId, openAddModal, updatePrefs]);
 
-  const navButton = (view: MainView, labelKey: string, key: string) => (
-    <button
-      onClick={() => updatePrefs({ mainView: view })}
-      title={`${t(labelKey, language)} (${key})`}
-      className={`border-b-2 pb-1 text-sm font-semibold transition-all duration-200 whitespace-nowrap ${
-        mainView === view ? 'border-primary text-primary' : 'border-transparent text-text-secondary hover:text-text-primary hover:border-border'
-      }`}
-    >
-      {t(labelKey, language)}
-    </button>
+  const closeTarget = closePrompt ? customers.find(c => c.id === closePrompt.id) ?? null : null;
+  const toggleTheme = () => updatePrefs({ theme: theme === 'light' ? 'dark' : 'light' });
+  const toggleLanguage = () => updatePrefs({ language: language === 'en' ? 'zh' : 'en' });
+
+  const paletteActions = [
+    { id: 'a-new', label: t('shell.newCustomer', language), hint: 'N', icon: <PlusIcon className="w-4 h-4" />, run: openAddModal },
+    { id: 'a-capture', label: t('capture.button', language), icon: <SparklesIcon className="w-4 h-4" />, run: () => setIsCaptureOpen(true) },
+    { id: 'a-theme', label: t('shell.toggleTheme', language), icon: <span className="w-4 text-center">◐</span>, run: toggleTheme },
+    { id: 'a-lang', label: t('shell.toggleLanguage', language), icon: <span className="w-4 text-center text-xs">文</span>, run: toggleLanguage },
+    ...dataItems.filter(d => !d.danger).map((d, i) => ({ id: `a-data-${i}`, label: d.label, icon: <span className="w-4 text-center">↧</span>, run: d.onClick })),
+    { id: 'a-help', label: t('shortcuts.title', language), hint: '?', icon: <span className="w-4 text-center">?</span>, run: () => setIsShortcutsOpen(true) },
+  ];
+
+  const settingsProps = {
+    language, theme, userEmail, dataItems,
+    onToggleLanguage: toggleLanguage,
+    onToggleTheme: toggleTheme,
+    onShowShortcuts: () => setIsShortcutsOpen(true),
+    onSignOut,
+  };
+
+  const viewToggle = (
+    <div className="hidden sm:flex items-center p-0.5 rounded-md border border-border bg-secondary/60">
+      {([['list', 'buttons.listView', <ViewListIcon key="l" className="w-4 h-4" />], ['kanban', 'buttons.kanbanView', <ViewGridIcon key="k" className="w-4 h-4" />]] as const).map(([mode, label, icon]) => (
+        <button
+          key={mode}
+          onClick={() => updatePrefs({ viewMode: mode })}
+          aria-pressed={viewMode === mode}
+          title={t(label, language)}
+          aria-label={t(label, language)}
+          className={`h-7 w-8 flex items-center justify-center rounded transition-colors ${viewMode === mode ? 'bg-surface text-text-primary shadow-sm' : 'text-text-secondary hover:text-text-primary'}`}
+        >
+          {icon}
+        </button>
+      ))}
+    </div>
   );
 
-  const closeTarget = closePrompt ? customers.find(c => c.id === closePrompt.id) ?? null : null;
-
   return (
-    <div className="h-screen bg-background font-sans flex flex-col overflow-hidden">
-      <header className="bg-surface/80 backdrop-blur-md border-b border-border px-4 py-3 flex gap-3 justify-between items-center sticky top-0 z-20">
-        <div className="flex items-center gap-4 min-w-0">
-          <h1 className="text-lg font-bold text-text-primary whitespace-nowrap truncate">{language === 'zh' ? 'AI 客戶管理' : 'AI CRM'}</h1>
-          <nav className="hidden md:flex items-center gap-4" aria-label="Main">
-            {navButton('today', 'today', '1')}
-            {navButton('management', 'management', '2')}
-            {navButton('dashboard', 'dashboard', '3')}
-          </nav>
-        </div>
-        <div className="flex items-center gap-2">
-          <SyncBadge status={store.status} onRetry={store.retry} language={language} />
+    <div className="h-screen bg-sidebar font-sans flex overflow-hidden text-text-primary">
+      <Sidebar
+        view={mainView}
+        onChange={v => updatePrefs({ mainView: v })}
+        todayCount={todayCount}
+        customerCount={customers.length}
+        language={language}
+        onOpenPalette={() => setIsPaletteOpen(true)}
+        onNewCustomer={openAddModal}
+        onCapture={() => setIsCaptureOpen(true)}
+        footer={
+          <div className="space-y-2">
+            <div className="px-2"><SyncBadge status={store.status} onRetry={store.retry} language={language} /></div>
+            <SettingsMenu {...settingsProps} variant="account" />
+          </div>
+        }
+      />
+
+      <div className="flex-grow min-w-0 flex flex-col bg-background md:my-2 md:mr-2 md:rounded-xl md:border md:border-border md:shadow-sm overflow-hidden">
+        <header className="h-14 flex-shrink-0 border-b border-border px-4 md:px-6 flex items-center gap-3">
+          <h1 className="text-base font-semibold truncate flex-grow">{t(`shell.titles.${mainView}`, language)}</h1>
+          <span className="md:hidden"><SyncBadge status={store.status} onRetry={store.retry} language={language} /></span>
+          {mainView === 'management' && viewToggle}
           {mainView === 'management' && (
-            <>
-              <button
-                onClick={() => updatePrefs({ isAIAssistantOpen: !isAIAssistantOpen })}
-                aria-pressed={isAIAssistantOpen}
-                className={`px-3 h-9 hidden lg:flex items-center justify-center gap-2 rounded-lg border transition-colors active:scale-95 ${
-                  isAIAssistantOpen ? 'bg-primary border-primary text-on-primary' : 'bg-surface border-border text-text-secondary hover:bg-secondary'
-                }`}
-                title={t('buttons.toggleAI', language)}
-              >
-                <ChatbotIcon className="w-5 h-5" />
-                <span className="text-sm font-semibold hidden xl:inline">{t('aiAssistant', language)}</span>
-              </button>
-              <div className="bg-surface border border-border p-1 rounded-lg hidden sm:flex items-center text-text-secondary">
-                <button onClick={() => updatePrefs({ viewMode: 'list' })} aria-pressed={viewMode === 'list'} className={`p-1.5 rounded-md transition-transform active:scale-95 ${viewMode === 'list' ? 'bg-primary text-on-primary' : 'hover:text-text-primary'}`} title={t('buttons.listView', language)} aria-label={t('buttons.listView', language)}>
-                  <ViewListIcon className="w-5 h-5" />
-                </button>
-                <button onClick={() => updatePrefs({ viewMode: 'kanban' })} aria-pressed={viewMode === 'kanban'} className={`p-1.5 rounded-md transition-transform active:scale-95 ${viewMode === 'kanban' ? 'bg-primary text-on-primary' : 'hover:text-text-primary'}`} title={t('buttons.kanbanView', language)} aria-label={t('buttons.kanbanView', language)}>
-                  <ViewGridIcon className="w-5 h-5" />
-                </button>
-              </div>
-            </>
+            <button
+              onClick={() => updatePrefs({ isAIAssistantOpen: !isAIAssistantOpen })}
+              aria-pressed={isAIAssistantOpen}
+              title={t('buttons.toggleAI', language)}
+              className={`btn hidden lg:inline-flex ${isAIAssistantOpen ? 'btn-secondary text-primary' : 'btn-ghost'}`}
+            >
+              <ChatbotIcon className="w-4 h-4" />{t('aiAssistant', language)}
+            </button>
           )}
-          <button onClick={() => setIsCaptureOpen(true)} className="px-3 h-9 flex items-center gap-2 rounded-lg border border-primary text-primary hover:bg-primary/10 transition active:scale-95" title={t('capture.title', language)} aria-label={t('capture.button', language)}>
+          <button onClick={() => setIsPaletteOpen(true)} className="btn btn-ghost btn-icon md:hidden" aria-label={t('shell.search', language)}>
+            <SearchIcon className="w-5 h-5" />
+          </button>
+          <button onClick={() => setIsCaptureOpen(true)} className="btn btn-ghost btn-icon md:hidden" aria-label={t('capture.button', language)}>
             <SparklesIcon className="w-5 h-5" />
-            <span className="text-sm font-semibold hidden sm:inline">{t('capture.button', language)}</span>
           </button>
-          <button onClick={openAddModal} className="h-9 w-9 flex items-center justify-center rounded-full bg-primary text-on-primary hover:bg-primary/90 transition-all active:scale-95" aria-label={t('addNewCustomer', language)} title={`${t('addNewCustomer', language)} (N)`}>
-            <PlusIcon className="w-5 h-5" />
+          <button onClick={openAddModal} className="btn btn-primary" aria-label={t('addNewCustomer', language)} title={`${t('addNewCustomer', language)} (N)`}>
+            <PlusIcon className="w-4 h-4" /><span className="hidden sm:inline">{t('shell.newCustomer', language)}</span>
           </button>
-          <SettingsMenu
-            language={language}
-            theme={theme}
-            userEmail={userEmail}
-            onToggleLanguage={() => updatePrefs({ language: language === 'en' ? 'zh' : 'en' })}
-            onToggleTheme={() => updatePrefs({ theme: theme === 'light' ? 'dark' : 'light' })}
-            dataItems={dataItems}
-            onShowShortcuts={() => setIsShortcutsOpen(true)}
-            onSignOut={onSignOut}
-          />
+          <span className="md:hidden"><SettingsMenu {...settingsProps} /></span>
           <input ref={fileInput} type="file" accept="application/json,.json" className="hidden"
             onChange={e => { const f = e.target.files?.[0]; if (f) handleImport(f); e.target.value = ''; }} />
-        </div>
-      </header>
+        </header>
 
-      {legacy.length > 0 && store.loaded && (
-        <div className="bg-primary/10 border-b border-primary/30 px-4 py-2 flex flex-wrap items-center gap-3 text-sm" role="status">
-          <span className="flex-grow">{tf('migrate.found', language, { n: legacy.length })}</span>
-          <button onClick={uploadLegacy} className="px-3 py-1 rounded-md bg-primary text-on-primary font-semibold">{t('migrate.import', language)}</button>
-          <button onClick={() => setLegacy([])} className="px-3 py-1 rounded-md hover:bg-secondary">{t('migrate.dismiss', language)}</button>
-        </div>
-      )}
+        {legacy.length > 0 && store.loaded && (
+          <div className="border-b border-border bg-primary/5 px-4 md:px-6 py-2 flex flex-wrap items-center gap-3 text-sm" role="status">
+            <span className="flex-grow">{tf('migrate.found', language, { n: legacy.length })}</span>
+            <button onClick={uploadLegacy} className="btn btn-primary btn-sm">{t('migrate.import', language)}</button>
+            <button onClick={() => setLegacy([])} className="btn btn-ghost btn-sm">{t('migrate.dismiss', language)}</button>
+          </div>
+        )}
 
-      <main className="p-4 md:p-6 pb-20 md:pb-6 flex-grow min-h-0">
-        <div key={mainView} className="animate-fade-in h-full">
-          {!store.loaded ? (
-            <div className="space-y-3 max-w-5xl mx-auto" aria-busy="true">
-              {[0, 1, 2, 3].map(i => <div key={i} className="h-20 rounded-lg bg-surface border border-border animate-pulse" />)}
-            </div>
-          ) : customers.length === 0 ? (
-            <WelcomeScreen onOpenAddCustomerModal={openAddModal} onOpenCapture={() => setIsCaptureOpen(true)} onLoadDemo={loadDemo} language={language} />
-          ) : (<>
-          {mainView === 'today' && (
-            <TodayView
-              customers={customers}
-              language={language}
-              onOpenCustomer={openCustomer}
-              onComplete={id => setCompleteId(id)}
-              onSnooze={handleSnooze}
-              onSetNextAction={handleSetNextAction}
-            />
-          )}
-          {mainView === 'management' && (
-            <CustomerDashboard
-              viewMode={viewMode}
-              customers={customers}
-              selectedCustomer={selectedCustomer}
-              onSelectCustomer={setSelectedCustomerId}
-              onAddInteraction={handleAddInteraction}
-              onUpdateCustomer={handleUpdateCustomer}
-              onOpenAddCustomerModal={openAddModal}
-              onEditCustomer={openEditModal}
-              language={language}
-              isAIAssistantOpen={isAIAssistantOpen}
-              onMoveCustomer={handleMoveCustomer}
-              onSetNextAction={handleSetNextAction}
-              onSnooze={handleSnooze}
-              onCompleteAction={id => setCompleteId(id)}
-              onDeleteCustomers={handleDeleteCustomers}
-              onBulkUpdate={handleBulkUpdate}
-            />
-          )}
-          {mainView === 'dashboard' && <AnalyticsDashboard customers={customers} language={language} />}
-          </>)}
-        </div>
-      </main>
+        <main className={`flex-grow min-h-0 ${mainView === 'management' && customers.length > 0 ? 'pb-16 md:pb-0' : 'p-4 md:p-6 pb-20 md:pb-6'}`}>
+          <div key={mainView} className="animate-fade-in h-full">
+            {!store.loaded ? (
+              <div className="space-y-3 max-w-5xl mx-auto" aria-busy="true">
+                {[0, 1, 2, 3].map(i => <div key={i} className="h-16 rounded-lg bg-secondary animate-pulse" />)}
+              </div>
+            ) : customers.length === 0 ? (
+              <WelcomeScreen onOpenAddCustomerModal={openAddModal} onOpenCapture={() => setIsCaptureOpen(true)} onLoadDemo={loadDemo} language={language} />
+            ) : (<>
+            {mainView === 'today' && (
+              <TodayView
+                customers={customers}
+                language={language}
+                onOpenCustomer={openCustomer}
+                onComplete={id => setCompleteId(id)}
+                onSnooze={handleSnooze}
+                onSetNextAction={handleSetNextAction}
+              />
+            )}
+            {mainView === 'management' && (
+              <CustomerDashboard
+                viewMode={viewMode}
+                customers={customers}
+                selectedCustomer={selectedCustomer}
+                onSelectCustomer={setSelectedCustomerId}
+                onAddInteraction={handleAddInteraction}
+                onUpdateCustomer={handleUpdateCustomer}
+                onOpenAddCustomerModal={openAddModal}
+                onEditCustomer={openEditModal}
+                language={language}
+                isAIAssistantOpen={isAIAssistantOpen}
+                onMoveCustomer={handleMoveCustomer}
+                onSetNextAction={handleSetNextAction}
+                onSnooze={handleSnooze}
+                onCompleteAction={id => setCompleteId(id)}
+                onDeleteCustomers={handleDeleteCustomers}
+                onBulkUpdate={handleBulkUpdate}
+              />
+            )}
+            {mainView === 'dashboard' && <AnalyticsDashboard customers={customers} language={language} />}
+            </>)}
+          </div>
+        </main>
+      </div>
 
       <BottomNav view={mainView} onChange={v => updatePrefs({ mainView: v })} todayCount={todayCount} language={language} />
+
+      {isPaletteOpen && <CommandPalette
+        isOpen
+        onClose={() => setIsPaletteOpen(false)}
+        customers={customers}
+        language={language}
+        onOpenCustomer={openCustomer}
+        onNavigate={v => updatePrefs({ mainView: v })}
+        actions={paletteActions}
+      />}
 
       <AddCustomerModal
         isOpen={isCustomerModalOpen}

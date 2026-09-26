@@ -2,32 +2,75 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Design tokens — "clean productivity": neutral zinc grays, one indigo accent,
+ * thin borders. All colors are RGB triplets so Tailwind can apply opacity.
+ * Contrast (light): text-secondary on white 7.7:1, white on primary 6.3:1.
+ * Contrast (dark): text-secondary on surface 6.9:1, on-primary on primary 7.3:1.
+ */
 :root {
-  --color-background: 248 250 252; /* slate-50 */
-  --color-surface: 255 255 255;    /* white */
-  --color-primary: 37 99 235;      /* blue-600: 5.2:1 with white text */
+  --color-sidebar: 244 244 245;        /* zinc-100 */
+  --color-background: 255 255 255;
+  --color-surface: 255 255 255;
+  --color-secondary: 244 244 245;      /* zinc-100: subtle fills, hovers */
+  --color-border: 228 228 231;         /* zinc-200 */
+  --color-text-primary: 24 24 27;      /* zinc-900 */
+  --color-text-secondary: 82 82 91;    /* zinc-600 */
+  --color-primary: 79 70 229;          /* indigo-600 */
   --color-on-primary: 255 255 255;
-  --color-secondary: 241 245 249; /* slate-100 */
-  --color-text-primary: 15 23 42;      /* slate-900 */
-  --color-text-secondary: 71 85 105;  /* slate-600 */
-  --color-border: 226 232 240; /* slate-200 */
+  color-scheme: light;
 }
 html.dark {
-  --color-background: 15 23 42;      /* slate-900 */
-  --color-surface: 30 41 59;        /* slate-800 */
-  --color-primary: 96 165 250;     /* blue-400 */
-  --color-on-primary: 15 23 42;    /* slate-900: 7:1 on blue-400 */
-  --color-secondary: 51 65 85;      /* slate-700 */
-  --color-text-primary: 241 245 249;  /* slate-100 */
-  --color-text-secondary: 148 163 184; /* slate-400 */
-  --color-border: 51 65 85; /* slate-700 */
+  --color-sidebar: 9 9 11;             /* zinc-950 */
+  --color-background: 17 17 19;
+  --color-surface: 24 24 27;           /* zinc-900 */
+  --color-secondary: 39 39 42;         /* zinc-800 */
+  --color-border: 39 39 42;            /* zinc-800 */
+  --color-text-primary: 244 244 245;   /* zinc-100 */
+  --color-text-secondary: 161 161 170; /* zinc-400 */
+  --color-primary: 129 140 248;        /* indigo-400 */
+  --color-on-primary: 24 24 27;
+  color-scheme: dark;
 }
+
+html {
+  font-family: 'Inter Variable', 'PingFang TC', 'Noto Sans TC', 'Microsoft JhengHei', system-ui, sans-serif;
+  font-feature-settings: 'cv11', 'ss01';
+  -webkit-font-smoothing: antialiased;
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-md text-sm font-medium whitespace-nowrap
+      transition-colors select-none disabled:opacity-50 disabled:pointer-events-none;
+  }
+  .btn-sm { @apply h-7 px-2 text-xs; }
+  .btn-icon { @apply w-8 px-0; }
+  .btn-primary { @apply bg-primary text-on-primary shadow-sm hover:bg-primary/90; }
+  .btn-secondary { @apply bg-surface text-text-primary border border-border shadow-sm hover:bg-secondary; }
+  .btn-ghost { @apply text-text-secondary hover:bg-secondary hover:text-text-primary; }
+  .btn-danger { @apply bg-rose-600 text-white shadow-sm hover:bg-rose-700; }
+
+  .card { @apply bg-surface border border-border rounded-lg; }
+  .card-title { @apply text-sm font-semibold text-text-primary; }
+
+  .input {
+    @apply w-full rounded-md border border-border bg-surface px-3 py-1.5 text-sm text-text-primary
+      placeholder:text-text-secondary/70 outline-none transition
+      focus:border-primary focus:ring-2 focus:ring-primary/20;
+  }
+
+  .kbd { @apply inline-flex items-center px-1.5 h-5 rounded border border-border bg-surface text-[11px] font-medium text-text-secondary; }
+
+  .chip { @apply inline-flex items-center gap-1.5 rounded-md border border-border px-1.5 py-0.5 text-xs font-medium text-text-primary whitespace-nowrap; }
+}
+
 @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
+    from { opacity: 0; transform: translateY(4px); }
     to { opacity: 1; transform: translateY(0); }
 }
 .animate-fade-in {
-    animation: fadeIn 0.4s ease-out forwards;
+    animation: fadeIn 0.2s ease-out forwards;
 }
 @keyframes bounce-dot {
   0%, 80%, 100% {

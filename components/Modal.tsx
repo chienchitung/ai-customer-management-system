@@ -26,23 +26,23 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, size = 
   // Render the modal using a portal to attach it to the body, ensuring it's on top of other content.
   return ReactDOM.createPortal(
     <div
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center z-50 p-4"
       onClick={onClose} // Close modal on overlay click.
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`bg-surface rounded-lg shadow-xl w-full ${SIZES[size]} border border-border flex flex-col max-h-[90vh]`}
+        className={`bg-surface rounded-xl shadow-2xl w-full ${SIZES[size]} border border-border flex flex-col max-h-[90vh] animate-fade-in`}
         onClick={e => e.stopPropagation()} // Prevent closing when clicking inside the modal content.
       >
-        <div className="flex justify-between items-center p-4 border-b border-border flex-shrink-0">
-          <h2 className="text-xl font-semibold">{title}</h2>
-          <button onClick={onClose} aria-label="Close" className="p-1 rounded-full text-text-secondary hover:bg-secondary hover:text-text-primary transition-colors">
-            <CloseIcon className="w-5 h-5" />
+        <div className="flex justify-between items-center h-14 px-5 border-b border-border flex-shrink-0">
+          <h2 className="text-base font-semibold truncate">{title}</h2>
+          <button onClick={onClose} aria-label="Close" className="btn btn-ghost btn-icon">
+            <CloseIcon className="w-4 h-4" />
           </button>
         </div>
-        <div className="p-6 overflow-y-auto">
+        <div className="p-5 overflow-y-auto">
           {children}
         </div>
       </div>
