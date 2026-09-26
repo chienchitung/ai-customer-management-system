@@ -16,9 +16,9 @@ type Language = 'en' | 'zh';
 export const aiErrorMessage = (error: unknown, language: Language) =>
   t(`ai.errors.${error instanceof AIError ? error.code : 'upstream_error'}`, language);
 
-const inputClass = 'w-full bg-secondary rounded-md p-2 text-sm focus:ring-2 focus:ring-inset focus:ring-primary/50 outline-none transition';
-const primaryBtn = 'px-4 py-2 bg-primary text-on-primary text-sm font-semibold rounded-md hover:bg-primary/90 transition disabled:opacity-50 active:scale-95';
-const secondaryBtn = 'px-4 py-2 bg-secondary text-text-primary text-sm font-semibold rounded-md hover:bg-border transition';
+const inputClass = 'input';
+const primaryBtn = 'btn btn-primary';
+const secondaryBtn = 'btn btn-secondary';
 
 // ---------- Close reason (asked when a deal is moved to Won / Lost) ----------
 
@@ -43,7 +43,7 @@ export const CloseReasonModal: React.FC<{
             const label = t(`closeReason.presets.${p}`, language);
             return (
               <button type="button" key={p} onClick={() => setReason(r => (r ? `${r}, ${label}` : label))}
-                className="text-xs px-2 py-1 bg-secondary rounded-md hover:bg-border transition">{label}</button>
+                className="btn btn-sm btn-secondary">{label}</button>
             );
           })}
         </div>
@@ -103,7 +103,7 @@ export const CompleteActionModal: React.FC<{
             <div className="flex gap-2 flex-wrap">
               {Object.values(InteractionType).map(it => (
                 <button type="button" key={it} onClick={() => setType(it)}
-                  className={`text-xs px-3 py-1 rounded-full border transition ${type === it ? 'bg-primary text-on-primary border-primary' : 'border-border hover:bg-secondary'}`}>
+                  className={`btn btn-sm ${type === it ? 'btn-primary' : 'btn-secondary'}`}>
                   {t(`interactionTypes.${it}`, language)}
                 </button>
               ))}
@@ -195,7 +195,7 @@ export const SmartCaptureModal: React.FC<{
       <div className="space-y-3">
         <p className="text-sm text-text-secondary">{t('capture.help', language)}</p>
         {gmail.status.connected && !inbox && (
-          <button type="button" onClick={loadInbox} disabled={inboxLoading} className="text-sm font-semibold text-primary hover:underline disabled:opacity-50">
+          <button type="button" onClick={loadInbox} disabled={inboxLoading} className="btn btn-sm btn-secondary">
             {inboxLoading ? t('gmail.loadingInbox', language) : `✉ ${t('gmail.fromInbox', language)}`}
           </button>
         )}
@@ -217,7 +217,7 @@ export const SmartCaptureModal: React.FC<{
         {error && <p role="alert" className="text-sm text-rose-600 dark:text-rose-400">{error}</p>}
         <div className="flex justify-end gap-2">
           <button type="button" onClick={onClose} className={secondaryBtn}>{t('modal.cancel', language)}</button>
-          <button type="button" onClick={extract} disabled={!text.trim() || loading} className={`${primaryBtn} flex items-center gap-2`}>
+          <button type="button" onClick={extract} disabled={!text.trim() || loading} className={primaryBtn}>
             <SparklesIcon className="w-4 h-4" />
             {t(loading ? 'capture.extracting' : 'capture.extract', language)}
           </button>
@@ -230,6 +230,7 @@ export const SmartCaptureModal: React.FC<{
 // ---------- Keyboard shortcut help ----------
 
 export const SHORTCUTS: [string, string][] = [
+  ['⌘K', 'shortcuts.palette'],
   ['N', 'shortcuts.newCustomer'],
   ['/', 'shortcuts.search'],
   ['L', 'shortcuts.logFocus'],
@@ -246,7 +247,7 @@ export const ShortcutsModal: React.FC<{ isOpen: boolean; onClose: () => void; la
       {SHORTCUTS.map(([key, label]) => (
         <li key={key} className="flex justify-between text-sm">
           <span>{t(label, language)}</span>
-          <kbd className="px-2 py-0.5 rounded border border-border bg-secondary font-mono text-xs">{key}</kbd>
+          <kbd className="kbd">{key}</kbd>
         </li>
       ))}
     </ul>

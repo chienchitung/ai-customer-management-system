@@ -4,7 +4,7 @@ import {
   streamText, salesSystemInstruction, suggestNextStep, draftFollowUpEmail,
   MEETING_BRIEF_PROMPT, SUMMARY_PROMPT, ChatTurn, NextStepSuggestion, EmailDraft,
 } from '../services/geminiService';
-import { ChatbotIcon, UserIcon, SendIcon, ClipboardIcon, CheckIcon, CalendarIcon } from './icons';
+import { ChatbotIcon, SendIcon, ClipboardIcon, CheckIcon, CalendarIcon } from './icons';
 import { t } from '../localization';
 import { todayISO } from '../lib/dates';
 import { aiErrorMessage } from './Dialogs';
@@ -52,7 +52,7 @@ const CopyButton: React.FC<{ text: string; language: Language }> = ({ text, lang
           setTimeout(() => setCopied(false), 1500);
         } catch { /* clipboard blocked */ }
       }}
-      className="text-xs flex items-center gap-1 px-2 py-1 rounded-md hover:bg-border transition"
+      className="btn btn-sm btn-ghost"
     >
       {copied ? <CheckIcon className="w-3.5 h-3.5 text-emerald-500" /> : <ClipboardIcon className="w-3.5 h-3.5" />}
       {t(copied ? 'ai.copied' : 'ai.copy', language)}
@@ -60,7 +60,7 @@ const CopyButton: React.FC<{ text: string; language: Language }> = ({ text, lang
   );
 };
 
-const actionBtn = 'text-xs px-2 py-1 rounded-md font-semibold transition';
+const actionBtn = 'btn btn-sm';
 
 const AIAssistant: React.FC<AIAssistantProps> = ({ customer, language, onAddInteraction, onSetNextAction }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -184,7 +184,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ customer, language, onAddInte
             {!m.welcome && !m.streaming && m.text && (
               <div className="flex gap-1 mt-2 -ml-2 text-text-secondary">
                 <CopyButton text={m.text} language={language} />
-                <button disabled={savedNotes.has(m.id)} onClick={() => saveAsNote(m.id, m.text)} className={`${actionBtn} hover:bg-border disabled:opacity-60`}>
+                <button disabled={savedNotes.has(m.id)} onClick={() => saveAsNote(m.id, m.text)} className={`${actionBtn} btn-ghost`}>
                   {t(savedNotes.has(m.id) ? 'ai.saved' : 'ai.saveNote', language)}
                 </button>
               </div>
@@ -201,7 +201,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ customer, language, onAddInte
             <button
               disabled={m.applied}
               onClick={() => { onSetNextAction(customer.id, { description: m.data.description, dueDate: m.data.dueDate }); patchMessage(m.id, { applied: true } as Partial<ChatMessage>); }}
-              className={`${actionBtn} bg-primary text-on-primary hover:bg-primary/90 disabled:opacity-60 flex items-center gap-1`}
+              className={`${actionBtn} btn-primary`}
             >
               {m.applied && <CheckIcon className="w-3.5 h-3.5" />}{t(m.applied ? 'ai.saved' : 'ai.setNext', language)}
             </button>
@@ -221,7 +221,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ customer, language, onAddInte
                 <button
                   disabled={m.logged}
                   onClick={() => setSendDraft({ messageId: m.id, to: customer.email, subject: m.data.subject, body: m.data.body })}
-                  className={`${actionBtn} bg-primary text-on-primary hover:bg-primary/90 disabled:opacity-60 flex items-center gap-1`}
+                  className={`${actionBtn} btn-primary`}
                 >
                   {m.logged && <CheckIcon className="w-3.5 h-3.5" />}{t(m.logged ? 'ai.saved' : 'gmail.send', language)}
                 </button>
@@ -233,7 +233,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ customer, language, onAddInte
                   onAddInteraction(customer.id, { type: InteractionType.EMAIL, date: todayISO(), summary: `${t('gmail.sentPrefix', language)}${m.data.subject}` });
                   patchMessage(m.id, { logged: true } as Partial<ChatMessage>);
                 }}
-                className={`${actionBtn} bg-primary text-on-primary hover:bg-primary/90 flex items-center gap-1`}
+                className={`${actionBtn} btn-primary`}
               >
                 {m.logged && <CheckIcon className="w-3.5 h-3.5" />}{t('ai.openEmail', language)}
               </a>
@@ -246,59 +246,54 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ customer, language, onAddInte
         return (
           <div role="alert" className="text-sm space-y-2">
             <p className="text-rose-600 dark:text-rose-400">{m.text}</p>
-            <button onClick={m.retry} disabled={isLoading} className={`${actionBtn} bg-primary text-on-primary hover:bg-primary/90 disabled:opacity-50`}>{t('ai.retry', language)}</button>
+            <button onClick={m.retry} disabled={isLoading} className={`${actionBtn} btn-primary`}>{t('ai.retry', language)}</button>
           </div>
         );
     }
   };
 
   return (
-    <div className="bg-surface rounded-lg border border-border flex flex-col h-full">
-      <div className="flex items-center gap-3 p-4 border-b border-border flex-shrink-0">
-        <div className="bg-primary/10 p-2 rounded-full">
-          <ChatbotIcon className="w-6 h-6 text-primary" />
+    <div className="bg-surface flex flex-col h-full">
+      <div className="flex items-center gap-3 h-14 px-4 border-b border-border flex-shrink-0">
+        <div className="bg-primary/10 p-1.5 rounded-md">
+          <ChatbotIcon className="w-4 h-4 text-primary" />
         </div>
         <div className="min-w-0">
-          <h3 className="font-bold text-text-primary">{t('aiAssistant', language)}</h3>
+          <h3 className="text-sm font-semibold text-text-primary">{t('aiAssistant', language)}</h3>
           <p className="text-xs text-text-secondary truncate">{customer.name} · {customer.company}</p>
         </div>
       </div>
 
-      <div className="flex-grow p-4 space-y-4 overflow-y-auto" aria-live="polite">
+      <div className="flex-grow p-4 space-y-3 overflow-y-auto" aria-live="polite">
         {messages.map(msg => (
-          <div key={msg.id} className={`flex items-end gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+          <div key={msg.id} className={`flex items-start gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             {msg.role === 'model' && (
-              <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center flex-shrink-0">
-                <ChatbotIcon className="w-5 h-5 text-primary" />
+              <div className="w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
+                <ChatbotIcon className="w-3.5 h-3.5 text-primary" />
               </div>
             )}
-            <div className={`px-4 py-3 rounded-2xl max-w-[85%] min-w-0 break-words ${msg.role === 'user' ? 'bg-primary text-on-primary rounded-br-lg' : 'bg-secondary text-text-primary rounded-bl-lg'}`}>
+            <div className={`px-3 py-2 rounded-lg max-w-[88%] min-w-0 break-words ${msg.role === 'user' ? 'bg-primary text-on-primary' : 'bg-secondary text-text-primary'}`}>
               {msg.role === 'user' ? <p className="text-sm whitespace-pre-wrap">{msg.text}</p> : renderModel(msg)}
             </div>
-            {msg.role === 'user' && (
-              <div className="w-8 h-8 rounded-full bg-blue-200 dark:bg-slate-600 flex items-center justify-center flex-shrink-0">
-                <UserIcon className="w-5 h-5 text-blue-600 dark:text-blue-300" />
-              </div>
-            )}
           </div>
         ))}
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="p-4 bg-surface border-t border-border flex-shrink-0">
-        <div className="grid grid-cols-2 gap-2 mb-3">
+      <div className="p-3 bg-surface border-t border-border flex-shrink-0">
+        <div className="grid grid-cols-2 gap-1.5 mb-2">
           {Object.values(AISuggestionType).map(type => (
             <button
               key={type}
               onClick={() => handleQuickAction(type)}
               disabled={isLoading}
-              className="p-2 text-sm text-center font-medium bg-secondary rounded-md hover:bg-border transition disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
+              className="btn btn-sm btn-secondary justify-start"
             >
               {t(`aiSuggestions.${type}`, language)}
             </button>
           ))}
         </div>
-        <form onSubmit={handleSubmit} className="flex items-end gap-3">
+        <form onSubmit={handleSubmit} className="flex items-end gap-2">
           <textarea
             ref={textareaRef}
             value={input}
@@ -311,17 +306,17 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ customer, language, onAddInte
             }}
             placeholder={t('askAQuestion', language)}
             aria-label={t('askAQuestion', language)}
-            className="w-full px-4 py-2.5 bg-secondary border border-transparent focus:border-primary rounded-xl focus:ring-1 focus:ring-primary text-text-primary resize-none transition-colors"
+            className="input resize-none py-2"
             rows={1}
-            style={{ minHeight: '44px' }}
+            style={{ minHeight: '36px' }}
           />
           {isLoading ? (
-            <button type="button" onClick={() => abortRef.current?.abort()} className="h-11 px-3 flex-shrink-0 bg-secondary text-text-primary rounded-full text-sm font-semibold hover:bg-border transition">
+            <button type="button" onClick={() => abortRef.current?.abort()} className="btn btn-secondary flex-shrink-0">
               {t('ai.stop', language)}
             </button>
           ) : (
-            <button type="submit" disabled={!input.trim()} aria-label="Send" className="w-11 h-11 flex-shrink-0 bg-primary text-on-primary rounded-full flex items-center justify-center disabled:bg-primary/50 disabled:cursor-not-allowed transition-colors active:scale-95">
-              <SendIcon className="w-5 h-5" />
+            <button type="submit" disabled={!input.trim()} aria-label="Send" className="btn btn-primary btn-icon h-9 w-9 flex-shrink-0">
+              <SendIcon className="w-4 h-4" />
             </button>
           )}
         </form>

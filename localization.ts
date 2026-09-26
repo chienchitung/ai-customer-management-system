@@ -158,7 +158,7 @@ const translations = {
             importOk: 'Imported {n} customers.', importFail: 'This file is not a valid backup.', confirmImport: 'Replace all current data with {n} customers from the file?', confirmReset: 'Replace all current data with the demo data?',
             saveFailed: 'Could not save to this browser. Export a backup to avoid losing changes.',
         },
-        shortcuts: { title: 'Keyboard shortcuts', newCustomer: 'New customer', search: 'Search', goToday: 'Today', goManage: 'Management', goDashboard: 'Dashboard', logFocus: 'Log interaction', help: 'Show shortcuts', close: 'Close dialog' },
+        shortcuts: { title: 'Keyboard shortcuts', palette: 'Command palette', newCustomer: 'New customer', search: 'Search', goToday: 'Today', goManage: 'Management', goDashboard: 'Dashboard', logFocus: 'Log interaction', help: 'Show shortcuts', close: 'Close dialog' },
         undo: 'Undo', deleted: 'Customer deleted.', deleteCustomer: 'Delete customer', confirmDeleteOne: 'Delete {name}? This cannot be undone.',
         lastContactAgo: '{n}d ago',
         dash: {
@@ -194,6 +194,13 @@ const translations = {
         detailsMore: 'More details (contacts, pain points, competitors)',
         dates: { today: 'Today', tomorrow: 'Tomorrow', yesterday: 'Yesterday', inDays: 'in {n} days', daysAgo: '{n} days ago' },
         moveTo: 'Move to...',
+
+        shell: {
+            search: 'Search or jump to...', newCustomer: 'New customer', quick: 'Quick actions', pages: 'Pages', customers: 'Customers', actions: 'Actions',
+            noResults: 'No results', toggleTheme: 'Toggle dark mode', toggleLanguage: 'Switch language', collapse: 'Collapse sidebar',
+            titles: { today: 'Today', management: 'Customers', dashboard: 'Dashboard' },
+            overview: 'Overview', activity: 'Activity', recent: 'Recent activity', viewAll: 'View all',
+        },
         // Statuses
         statuses: {
             [CustomerStatus.LEAD]: 'Lead',
@@ -360,7 +367,7 @@ const translations = {
             importOk: '已匯入 {n} 位客戶。', importFail: '檔案不是有效的備份。', confirmImport: '要以檔案中的 {n} 位客戶取代目前所有資料嗎？', confirmReset: '要以示範資料取代目前所有資料嗎？',
             saveFailed: '無法儲存到此瀏覽器，請先匯出備份以免遺失資料。',
         },
-        shortcuts: { title: '鍵盤快捷鍵', newCustomer: '新增客戶', search: '搜尋', goToday: '今日工作', goManage: '客戶管理', goDashboard: '儀表板', logFocus: '記錄互動', help: '顯示快捷鍵', close: '關閉視窗' },
+        shortcuts: { title: '鍵盤快捷鍵', palette: '指令面板', newCustomer: '新增客戶', search: '搜尋', goToday: '今日工作', goManage: '客戶管理', goDashboard: '儀表板', logFocus: '記錄互動', help: '顯示快捷鍵', close: '關閉視窗' },
         undo: '復原', deleted: '已刪除客戶。', deleteCustomer: '刪除客戶', confirmDeleteOne: '確定刪除 {name}？此動作無法復原。',
         lastContactAgo: '{n} 天前',
         dash: {
@@ -396,6 +403,13 @@ const translations = {
         detailsMore: '更多資料（聯絡人、痛點、競爭對手）',
         dates: { today: '今天', tomorrow: '明天', yesterday: '昨天', inDays: '{n} 天後', daysAgo: '{n} 天前' },
         moveTo: '移動到...',
+
+        shell: {
+            search: '搜尋或跳轉...', newCustomer: '新增客戶', quick: '快速動作', pages: '頁面', customers: '客戶', actions: '動作',
+            noResults: '沒有符合的結果', toggleTheme: '切換深色模式', toggleLanguage: '切換語言', collapse: '收合側邊欄',
+            titles: { today: '今日工作台', management: '客戶', dashboard: '儀表板' },
+            overview: '概覽', activity: '互動記錄', recent: '最近互動', viewAll: '查看全部',
+        },
         // Statuses
         statuses: {
             [CustomerStatus.LEAD]: '銷售線索',

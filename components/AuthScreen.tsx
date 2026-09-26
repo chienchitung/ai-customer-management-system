@@ -49,23 +49,23 @@ const AuthScreen: React.FC<{ language: Language; onToggleLanguage: () => void }>
     }
   };
 
-  const input = 'w-full bg-secondary rounded-md p-2.5 text-sm focus:ring-2 focus:ring-primary/50 outline-none';
+  const input = 'input h-10';
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="w-full max-w-sm bg-surface border border-border rounded-xl shadow-sm p-6 space-y-5">
+    <div className="min-h-screen bg-sidebar flex items-center justify-center p-4">
+      <div className="w-full max-w-sm card shadow-sm p-7 space-y-5">
         <div className="flex justify-between items-start gap-2">
           <div>
-            <h1 className="text-xl font-bold">{t('auth.title', language)}</h1>
+            <h1 className="text-lg font-semibold tracking-tight">{t('auth.title', language)}</h1>
             <p className="text-sm text-text-secondary mt-1">{t('auth.subtitle', language)}</p>
           </div>
-          <button onClick={onToggleLanguage} className="text-xs font-semibold px-2 py-1 rounded-md border border-border hover:bg-secondary">
+          <button onClick={onToggleLanguage} className="btn btn-sm btn-secondary">
             {language === 'en' ? '中文' : 'EN'}
           </button>
         </div>
 
         <div className="space-y-2">
-          <button onClick={google} className="w-full flex items-center justify-center gap-3 py-2.5 rounded-md border border-border bg-surface hover:bg-secondary font-semibold text-sm transition active:scale-[0.99]">
+          <button onClick={google} className="btn btn-secondary w-full h-10">
             <GoogleLogo />{t('auth.google', language)}
           </button>
           <p className="text-xs text-text-secondary">{t('auth.googleHint', language)}</p>
@@ -80,7 +80,7 @@ const AuthScreen: React.FC<{ language: Language; onToggleLanguage: () => void }>
           <input type="password" required minLength={6} autoComplete={mode === 'signIn' ? 'current-password' : 'new-password'} placeholder={t('auth.password', language)} aria-label={t('auth.password', language)} value={password} onChange={e => setPassword(e.target.value)} className={input} />
           {error && <p role="alert" className="text-sm text-rose-600 dark:text-rose-400">{error}</p>}
           {notice && <p role="status" className="text-sm text-emerald-700 dark:text-emerald-400">{notice}</p>}
-          <button type="submit" disabled={busy} className="w-full py-2.5 bg-primary text-on-primary text-sm font-semibold rounded-md hover:bg-primary/90 disabled:opacity-50 transition">
+          <button type="submit" disabled={busy} className="btn btn-primary w-full h-10">
             {t(mode === 'signIn' ? 'auth.signIn' : 'auth.signUp', language)}
           </button>
         </form>

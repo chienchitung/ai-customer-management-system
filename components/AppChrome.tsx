@@ -4,6 +4,7 @@ import { SyncStatus } from '../hooks/useCustomerStore';
 import { useGmail } from '../hooks/useGmail';
 import { isCloud } from '../lib/supabase';
 import { CheckIcon } from './icons';
+import { Avatar } from './ui';
 
 type Language = 'en' | 'zh';
 
@@ -12,7 +13,7 @@ type Language = 'en' | 'zh';
 export const SyncBadge: React.FC<{ status: SyncStatus; onRetry: () => void; language: Language }> = ({ status, onRetry, language }) => {
   if (status === 'error') {
     return (
-      <button onClick={onRetry} className="text-xs font-semibold px-2 py-1 rounded-md bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-200 hover:underline" role="status">
+      <button onClick={onRetry} className="chip border-rose-300 text-rose-700 dark:border-rose-500/40 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10" role="status">
         ⚠ {t('sync.error', language)} · {t('sync.retry', language)}
       </button>
     );
@@ -43,7 +44,9 @@ export const SettingsMenu: React.FC<{
   dataItems: MenuItem[];
   onShowShortcuts: () => void;
   onSignOut: () => void;
-}> = ({ language, theme, userEmail, onToggleLanguage, onToggleTheme, dataItems, onShowShortcuts, onSignOut }) => {
+  /** 'account' renders a full-width account row (sidebar) that opens upward. */
+  variant?: 'icon' | 'account';
+}> = ({ language, theme, userEmail, onToggleLanguage, onToggleTheme, dataItems, onShowShortcuts, onSignOut, variant = 'icon' }) => {
   const [open, setOpen] = useState(false);
   const gmail = useGmail();
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -61,14 +64,31 @@ export const SettingsMenu: React.FC<{
     return () => window.removeEventListener('keydown', onKey);
   }, [open]);
   const run = (fn: () => void) => () => { setOpen(false); fn(); };
-  const item = 'w-full text-left px-4 py-2 hover:bg-secondary flex items-center justify-between gap-3';
+  const item = 'w-full text-left px-3 h-8 mx-1 rounded-md hover:bg-secondary flex items-center justify-between gap-3 max-w-[calc(100%-0.5rem)]';
 
   return (
     <div className="relative">
+      {variant === 'account' ? (
+        <button
+          ref={buttonRef}
+          onClick={() => setOpen(o => !o)}
+          className="w-full flex items-center gap-2 p-1.5 rounded-md hover:bg-secondary transition-colors text-left"
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-label={t('settings.menu', language)}
+        >
+          <Avatar name={userEmail ?? (language === 'zh' ? '我' : 'Me')} size="sm" />
+          <span className="flex-grow min-w-0">
+            <span className="block text-sm font-medium truncate">{userEmail ?? t('settings.localMode', language).split('（')[0].split(' (')[0]}</span>
+            {gmail.status.connected && <span className="block text-xs text-text-secondary truncate">✉ {gmail.status.email}</span>}
+          </span>
+          <svg viewBox="0 0 20 20" className="w-4 h-4 text-text-secondary" fill="currentColor" aria-hidden="true"><path d="M10 3l4 5H6l4-5zm0 14l-4-5h8l-4 5z" /></svg>
+        </button>
+      ) : (
       <button
         ref={buttonRef}
         onClick={() => setOpen(o => !o)}
-        className="h-9 w-9 flex items-center justify-center rounded-full bg-surface border border-border text-text-secondary hover:bg-secondary transition-colors active:scale-95"
+        className="btn btn-ghost btn-icon"
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={t('settings.menu', language)}
@@ -76,10 +96,11 @@ export const SettingsMenu: React.FC<{
       >
         <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} aria-hidden="true"><path strokeLinecap="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
       </button>
+      )}
       {open && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-          <div role="menu" className="absolute right-0 mt-2 w-72 bg-surface border border-border rounded-lg shadow-lg z-40 py-1 text-sm">
+          <div role="menu" className={`absolute w-72 bg-surface border border-border rounded-lg shadow-xl z-40 py-1 text-sm ${variant === 'account' ? 'left-0 bottom-full mb-2' : 'right-0 mt-2'}`}>
             <div className="px-4 py-2 text-xs text-text-secondary border-b border-border truncate">
               {isCloud ? userEmail : t('settings.localMode', language)}
             </div>
@@ -109,7 +130,7 @@ export const SettingsMenu: React.FC<{
                 <button key={d.label} role="menuitem" className={`${item} ${d.danger ? 'text-rose-600 dark:text-rose-400' : ''}`} onClick={run(d.onClick)}>{d.label}</button>
               ))}
               <button role="menuitem" className={`${item} hidden md:flex`} onClick={run(onShowShortcuts)}>
-                {t('shortcuts.title', language)}<kbd className="px-1.5 rounded border border-border text-xs">?</kbd>
+                {t('shortcuts.title', language)}<kbd className="kbd">?</kbd>
               </button>
             </div>
             {isCloud && (

@@ -112,14 +112,14 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onClose, on
 
   const renderDynamicList = (listName: 'customerPainPoints' | 'competitors', labelKey: string, addActionKey: string) => (
     <div>
-        <label className="block text-sm font-medium text-text-secondary mb-1">{t(labelKey, language)}</label>
+        <label className="block text-xs font-medium text-text-secondary mb-1">{t(labelKey, language)}</label>
         <div className="space-y-2">
             {formData[listName].map((item, index) => (
                 <div key={index} className="flex items-center gap-2">
                     <textarea
                         value={item}
                         onChange={(e) => handleDynamicListChange(listName, index, e.target.value)}
-                        className="w-full bg-secondary rounded-md p-2 text-sm focus:ring-2 focus:ring-inset focus:ring-primary/50 outline-none transition resize-y"
+                        className="input resize-y"
                         rows={2}
                     />
                     <button
@@ -134,7 +134,7 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onClose, on
                 </div>
             ))}
         </div>
-        <button type="button" onClick={() => addDynamicListItem(listName)} className="mt-2 text-sm font-semibold text-primary hover:text-primary/80 flex items-center gap-1">
+        <button type="button" onClick={() => addDynamicListItem(listName)} className="btn btn-ghost btn-sm mt-2 text-primary">
             <PlusIcon className="w-4 h-4" />
             {t(addActionKey, language)}
         </button>
@@ -149,57 +149,57 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onClose, on
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
             {/* Left Column: Primary & Deal Info */}
             <div className="space-y-4">
-                <h4 className="text-base font-semibold text-text-primary border-b border-border pb-2">{t('modal.primaryInfo', language)}</h4>
+                <h4 className="card-title">{t('modal.primaryInfo', language)}</h4>
                 <div>
-                  <label className="block text-sm font-medium text-text-secondary mb-1">{t('modal.fullName', language)}</label>
-                  <input type="text" name="name" value={formData.name} onChange={handleInputChange} className="w-full bg-secondary rounded-md p-2 text-sm focus:ring-2 focus:ring-inset focus:ring-primary/50 outline-none transition" required autoFocus />
+                  <label className="block text-xs font-medium text-text-secondary mb-1">{t('modal.fullName', language)}</label>
+                  <input type="text" name="name" value={formData.name} onChange={handleInputChange} className="input" required autoFocus />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-text-secondary mb-1">{t('modal.company', language)}</label>
-                  <input type="text" name="company" value={formData.company} onChange={handleInputChange} className="w-full bg-secondary rounded-md p-2 text-sm focus:ring-2 focus:ring-inset focus:ring-primary/50 outline-none transition" required />
+                  <label className="block text-xs font-medium text-text-secondary mb-1">{t('modal.company', language)}</label>
+                  <input type="text" name="company" value={formData.company} onChange={handleInputChange} className="input" required />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-text-secondary mb-1">{t('modal.emailAddress', language)}</label>
-                  <input type="email" name="email" value={formData.email} onChange={handleInputChange} className="w-full bg-secondary rounded-md p-2 text-sm focus:ring-2 focus:ring-inset focus:ring-primary/50 outline-none transition" />
+                  <label className="block text-xs font-medium text-text-secondary mb-1">{t('modal.emailAddress', language)}</label>
+                  <input type="email" name="email" value={formData.email} onChange={handleInputChange} className="input" />
                 </div>
                  <div>
-                  <label className="block text-sm font-medium text-text-secondary mb-1">{t('modal.dealValue', language)}</label>
-                  <input type="number" name="dealValue" placeholder={t('modal.dealValuePlaceholder', language)} value={formData.dealValue} onChange={handleInputChange} className="w-full bg-secondary rounded-md p-2 text-sm focus:ring-2 focus:ring-inset focus:ring-primary/50 outline-none transition" />
+                  <label className="block text-xs font-medium text-text-secondary mb-1">{t('modal.dealValue', language)}</label>
+                  <input type="number" name="dealValue" placeholder={t('modal.dealValuePlaceholder', language)} value={formData.dealValue} onChange={handleInputChange} className="input" />
                 </div>
             </div>
 
             {/* Right Column: Next Action */}
             <div className="space-y-4">
-                 <h4 className="text-base font-semibold text-text-primary border-b border-border pb-2">{t('nextAction', language)}</h4>
+                 <h4 className="card-title">{t('nextAction', language)}</h4>
                 <div>
-                    <label className="block text-sm font-medium text-text-secondary mb-1">{t('modal.nextActionDesc', language)}</label>
-                    <textarea name="description" value={formData.nextAction.description} onChange={handleNextActionChange} className="w-full bg-secondary rounded-md p-2 text-sm focus:ring-2 focus:ring-inset focus:ring-primary/50 outline-none transition" rows={3} />
+                    <label className="block text-xs font-medium text-text-secondary mb-1">{t('modal.nextActionDesc', language)}</label>
+                    <textarea name="description" value={formData.nextAction.description} onChange={handleNextActionChange} className="input" rows={3} />
                 </div>
                 <div>
-                    <label className="block text-sm font-medium text-text-secondary mb-1">{t('modal.nextActionDueDate', language)}</label>
-                    <input type="date" name="dueDate" value={formData.nextAction.dueDate} onChange={handleNextActionChange} className="w-full bg-secondary rounded-md p-2 text-sm focus:ring-2 focus:ring-inset focus:ring-primary/50 outline-none transition" />
+                    <label className="block text-xs font-medium text-text-secondary mb-1">{t('modal.nextActionDueDate', language)}</label>
+                    <input type="date" name="dueDate" value={formData.nextAction.dueDate} onChange={handleNextActionChange} className="input" />
                 </div>
             </div>
         </div>
 
         {/* Optional details, collapsed unless they already contain data */}
         <details open={hasDetails} className="group rounded-lg border border-border">
-        <summary className="cursor-pointer select-none px-4 py-3 text-sm font-semibold text-primary list-none flex items-center gap-2">
-            <span className="transition-transform group-open:rotate-90">▸</span>{t('detailsMore', language)}
+        <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium text-text-primary list-none flex items-center gap-2 hover:bg-secondary/50 rounded-lg">
+            <span className="transition-transform group-open:rotate-90 text-text-secondary">▸</span>{t('detailsMore', language)}
         </summary>
         <div className="px-4 pb-4 space-y-6">
         <div className="pt-2">
-            <h4 className="text-base font-semibold text-text-primary border-b border-border pb-2">{t('keyContacts', language)}</h4>
+            <h4 className="card-title">{t('keyContacts', language)}</h4>
             <div className="space-y-3 mt-3">
             {formData.keyContacts.map((contact, index) => (
                 <div key={contact.id} className="grid grid-cols-[1fr,1fr,auto] gap-4 items-end">
                     <div>
                         <label className="block text-xs font-medium text-text-secondary mb-1">{t('modal.contactName', language)}</label>
-                        <input type="text" value={contact.name} onChange={e => handleContactChange(index, 'name', e.target.value)} className="w-full bg-secondary rounded-md p-2 text-sm focus:ring-2 focus:ring-inset focus:ring-primary/50 outline-none transition" />
+                        <input type="text" value={contact.name} onChange={e => handleContactChange(index, 'name', e.target.value)} className="input" />
                     </div>
                     <div>
                         <label className="block text-xs font-medium text-text-secondary mb-1">{t('modal.contactTitle', language)}</label>
-                        <input type="text" value={contact.title} onChange={e => handleContactChange(index, 'title', e.target.value)} className="w-full bg-secondary rounded-md p-2 text-sm focus:ring-2 focus:ring-inset focus:ring-primary/50 outline-none transition" />
+                        <input type="text" value={contact.title} onChange={e => handleContactChange(index, 'title', e.target.value)} className="input" />
                     </div>
                     <div>
                         <button type="button" onClick={() => removeListItem('keyContacts', index)} className={`p-2 text-text-secondary hover:text-red-500 transition ${formData.keyContacts.length === 1 ? 'opacity-0 cursor-default' : ''}`} disabled={formData.keyContacts.length === 1} aria-label={t('modal.remove', language)}><TrashIcon className="w-5 h-5" /></button>
@@ -207,12 +207,12 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onClose, on
                 </div>
             ))}
             </div>
-            <button type="button" onClick={addContact} className="mt-3 text-sm font-semibold text-primary hover:text-primary/80 flex items-center gap-1"><PlusIcon className="w-4 h-4" />{t('modal.addContact', language)}</button>
+            <button type="button" onClick={addContact} className="btn btn-ghost btn-sm mt-2 text-primary"><PlusIcon className="w-4 h-4" />{t('modal.addContact', language)}</button>
         </div>
 
         {/* Intelligence (Full Width) */}
         <div className="pt-4">
-            <h4 className="text-base font-semibold text-text-primary border-b border-border pb-2">{t('customerPainPoints', language)} &amp; {t('knownCompetitors', language)}</h4>
+            <h4 className="card-title">{t('customerPainPoints', language)} &amp; {t('knownCompetitors', language)}</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-3">
                 {renderDynamicList('customerPainPoints', 'customerPainPoints', 'modal.addPainPoint')}
                 {renderDynamicList('competitors', 'knownCompetitors', 'modal.addCompetitor')}
@@ -222,9 +222,9 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onClose, on
         </details>
 
         {/* Actions */}
-        <div className="flex justify-end gap-3 pt-6">
-            <button type="button" onClick={onClose} className="px-4 py-2 bg-secondary text-text-primary text-sm font-semibold rounded-md hover:bg-border dark:hover:bg-slate-600 transition">{t('modal.cancel', language)}</button>
-            <button type="submit" className="px-4 py-2 bg-primary text-on-primary text-sm font-semibold rounded-md hover:bg-primary/90 transition">{t(isEditMode ? 'modal.saveChanges' : 'modal.addCustomer', language)}</button>
+        <div className="flex justify-end gap-2 pt-2 border-t border-border -mx-5 px-5 pt-4">
+            <button type="button" onClick={onClose} className="btn btn-secondary">{t('modal.cancel', language)}</button>
+            <button type="submit" className="btn btn-primary">{t(isEditMode ? 'modal.saveChanges' : 'modal.addCustomer', language)}</button>
         </div>
       </form>
     </Modal>

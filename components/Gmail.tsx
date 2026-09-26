@@ -91,22 +91,22 @@ export const GmailPanel: React.FC<{
     }
   };
 
-  const btn = 'text-xs px-2 py-1 rounded-md font-semibold transition disabled:opacity-50';
+  const btn = 'btn btn-sm';
 
   return (
-    <section className="bg-surface p-4 rounded-lg border border-border" aria-label={t('gmail.title', language)}>
+    <section className="card p-4" aria-label={t('gmail.title', language)}>
       <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
-        <h3 className="text-lg font-bold flex items-center gap-2">
+        <h3 className="card-title flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-rose-500" aria-hidden="true" />{t('gmail.title', language)}
         </h3>
         {gmail.status.connected && customer.email && (
           <div className="flex gap-2">
             {fresh.length > 0 && (
-              <button className={`${btn} bg-primary text-on-primary hover:bg-primary/90`} onClick={() => { fresh.forEach(quickLog); toast(tf('gmail.loggedAllToast', language, { n: fresh.length })); }}>
+              <button className={`${btn} btn-primary`} onClick={() => { fresh.forEach(quickLog); toast(tf('gmail.loggedAllToast', language, { n: fresh.length })); }}>
                 {tf('gmail.logAll', language, { n: fresh.length })}
               </button>
             )}
-            <button className={`${btn} bg-secondary hover:bg-border`} onClick={load} disabled={loading}>{t('gmail.refresh', language)}</button>
+            <button className={`${btn} btn-secondary`} onClick={load} disabled={loading}>{t('gmail.refresh', language)}</button>
           </div>
         )}
       </div>
@@ -114,7 +114,7 @@ export const GmailPanel: React.FC<{
       {!gmail.status.connected ? (
         <div className="flex flex-wrap items-center gap-3">
           <p className="text-sm text-text-secondary flex-grow">{t('gmail.connectHint', language)}</p>
-          <button onClick={gmail.connect} className="px-3 py-1.5 text-sm font-semibold rounded-md bg-primary text-on-primary hover:bg-primary/90">{t('gmail.connect', language)}</button>
+          <button onClick={gmail.connect} className="btn btn-primary">{t('gmail.connect', language)}</button>
         </div>
       ) : !customer.email ? (
         <p className="text-sm text-text-secondary">{t('gmail.noEmail', language)}</p>
@@ -122,7 +122,7 @@ export const GmailPanel: React.FC<{
         <div className="flex items-center gap-3">
           <p role="alert" className="text-sm text-rose-600 dark:text-rose-400">{error}</p>
           {gmail.status.connected ? (
-            <button className={`${btn} bg-secondary hover:bg-border`} onClick={load}>{t('ai.retry', language)}</button>
+            <button className={`${btn} btn-secondary`} onClick={load}>{t('ai.retry', language)}</button>
           ) : null}
         </div>
       ) : loading && !messages ? (
@@ -150,8 +150,8 @@ export const GmailPanel: React.FC<{
                     <span className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold px-2 py-1">✓ {t('gmail.logged', language)}</span>
                   ) : (
                     <>
-                      <button className={`${btn} bg-secondary hover:bg-border`} onClick={() => { quickLog(m); toast(t('gmail.loggedToast', language)); }}>{t('gmail.log', language)}</button>
-                      <button className={`${btn} border border-primary text-primary hover:bg-primary/10 flex items-center gap-1`} disabled={busyId !== null} onClick={() => aiLog(m)}>
+                      <button className={`${btn} btn-secondary`} onClick={() => { quickLog(m); toast(t('gmail.loggedToast', language)); }}>{t('gmail.log', language)}</button>
+                      <button className={`${btn} btn-ghost text-primary`} disabled={busyId !== null} onClick={() => aiLog(m)}>
                         <SparklesIcon className="w-3.5 h-3.5" />{busyId === m.id ? t('logger.organizing', language) : t('gmail.aiLog', language)}
                       </button>
                     </>
@@ -204,23 +204,23 @@ export const SendEmailModal: React.FC<{
     }
   };
 
-  const input = 'w-full bg-secondary rounded-md p-2 text-sm focus:ring-2 focus:ring-primary/50 outline-none';
+  const input = 'input';
   return (
     <Modal size="md" isOpen={!!draft} onClose={onClose} title={t('gmail.sendTitle', language)}>
       <form onSubmit={send} className="space-y-3">
-        <label className="block text-sm font-medium text-text-secondary">{t('gmail.to', language)}
+        <label className="block text-xs font-medium text-text-secondary">{t('gmail.to', language)}
           <input type="email" required value={to} onChange={e => setTo(e.target.value)} className={`${input} mt-1`} />
         </label>
-        <label className="block text-sm font-medium text-text-secondary">{t('gmail.subject', language)}
+        <label className="block text-xs font-medium text-text-secondary">{t('gmail.subject', language)}
           <input required value={subject} onChange={e => setSubject(e.target.value)} className={`${input} mt-1`} />
         </label>
-        <label className="block text-sm font-medium text-text-secondary">{t('gmail.body', language)}
+        <label className="block text-xs font-medium text-text-secondary">{t('gmail.body', language)}
           <textarea required rows={10} value={body} onChange={e => setBody(e.target.value)} className={`${input} mt-1 text-text-primary`} />
         </label>
         {error && <p role="alert" className="text-sm text-rose-600 dark:text-rose-400">{error}</p>}
         <div className="flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="px-4 py-2 bg-secondary text-sm font-semibold rounded-md hover:bg-border">{t('modal.cancel', language)}</button>
-          <button type="submit" disabled={sending} className="px-4 py-2 bg-primary text-on-primary text-sm font-semibold rounded-md hover:bg-primary/90 disabled:opacity-50">
+          <button type="button" onClick={onClose} className="btn btn-secondary">{t('modal.cancel', language)}</button>
+          <button type="submit" disabled={sending} className="btn btn-primary">
             {t(sending ? 'gmail.sending' : 'gmail.send', language)}
           </button>
         </div>
