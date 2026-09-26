@@ -1,20 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import Modal from './Modal';
 import { t } from '../localization';
-import { Customer, KeyContact } from '../types';
+import { Customer } from '../types';
 import { PlusIcon, TrashIcon } from './icons';
 
-const generateId = () => `id_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+import { generateId } from '../lib/ids';
 
 interface AddCustomerModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (data: Partial<Customer>, customerId?: string) => void;
   customerToEdit: Customer | null;
+  /** Pre-filled values for a new customer (e.g. from smart capture). */
+  prefill?: Partial<Customer> | null;
   language: 'en' | 'zh';
 }
 
-const getInitialState = (customer: Customer | null) => {
+const getInitialState = (customer: Partial<Customer> | null) => {
     if (customer) {
         return {
             name: customer.name || '',
@@ -43,15 +45,17 @@ const getInitialState = (customer: Customer | null) => {
 };
 
 
-const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onClose, onSave, customerToEdit, language }) => {
-  const [formData, setFormData] = useState(getInitialState(customerToEdit));
+const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onClose, onSave, customerToEdit, prefill, language }) => {
+  const [formData, setFormData] = useState(getInitialState(customerToEdit ?? prefill ?? null));
   const isEditMode = !!customerToEdit;
+  const source = customerToEdit ?? prefill;
+  const hasDetails = !!(source?.keyContacts?.length || source?.customerPainPoints?.length || source?.competitors?.length);
 
   useEffect(() => {
     if (isOpen) {
-        setFormData(getInitialState(customerToEdit));
+        setFormData(getInitialState(customerToEdit ?? prefill ?? null));
     }
-  }, [isOpen, customerToEdit]);
+  }, [isOpen, customerToEdit, prefill]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -93,10 +97,10 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onClose, on
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const { name, company, email, dealValue, keyContacts, customerPainPoints, competitors, nextAction } = formData;
-    if (!name || !company || !email) return;
+    if (!name.trim() || !company.trim()) return;
 
     const finalData: Partial<Customer> = {
-        name, company, email,
+        name: name.trim(), company: company.trim(), email: email.trim(),
         dealValue: dealValue ? parseFloat(dealValue) : undefined,
         keyContacts: keyContacts.filter(c => c.name.trim() !== ''),
         customerPainPoints: customerPainPoints.map(p => p.trim()).filter(p => p !== ''),
@@ -140,7 +144,7 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onClose, on
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={t(isEditMode ? 'modal.editTitle' : 'modal.addTitle', language)}>
-      <form onSubmit={handleSubmit} className="space-y-6 max-h-[75vh] overflow-y-auto pr-2">
+      <form onSubmit={handleSubmit} className="space-y-6">
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
             {/* Left Column: Primary & Deal Info */}
@@ -148,7 +152,7 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onClose, on
                 <h4 className="text-base font-semibold text-text-primary border-b border-border pb-2">{t('modal.primaryInfo', language)}</h4>
                 <div>
                   <label className="block text-sm font-medium text-text-secondary mb-1">{t('modal.fullName', language)}</label>
-                  <input type="text" name="name" value={formData.name} onChange={handleInputChange} className="w-full bg-secondary rounded-md p-2 text-sm focus:ring-2 focus:ring-inset focus:ring-primary/50 outline-none transition" required />
+                  <input type="text" name="name" value={formData.name} onChange={handleInputChange} className="w-full bg-secondary rounded-md p-2 text-sm focus:ring-2 focus:ring-inset focus:ring-primary/50 outline-none transition" required autoFocus />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-text-secondary mb-1">{t('modal.company', language)}</label>
@@ -156,7 +160,7 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onClose, on
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-text-secondary mb-1">{t('modal.emailAddress', language)}</label>
-                  <input type="email" name="email" value={formData.email} onChange={handleInputChange} className="w-full bg-secondary rounded-md p-2 text-sm focus:ring-2 focus:ring-inset focus:ring-primary/50 outline-none transition" required />
+                  <input type="email" name="email" value={formData.email} onChange={handleInputChange} className="w-full bg-secondary rounded-md p-2 text-sm focus:ring-2 focus:ring-inset focus:ring-primary/50 outline-none transition" />
                 </div>
                  <div>
                   <label className="block text-sm font-medium text-text-secondary mb-1">{t('modal.dealValue', language)}</label>
@@ -169,7 +173,7 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onClose, on
                  <h4 className="text-base font-semibold text-text-primary border-b border-border pb-2">{t('nextAction', language)}</h4>
                 <div>
                     <label className="block text-sm font-medium text-text-secondary mb-1">{t('modal.nextActionDesc', language)}</label>
-                    <textarea name="description" value={formData.nextAction.description} onChange={handleNextActionChange} className="w-full bg-secondary rounded-md p-2 text-sm focus:ring-2 focus:ring-inset focus:ring-primary/50 outline-none transition" rows={6} />
+                    <textarea name="description" value={formData.nextAction.description} onChange={handleNextActionChange} className="w-full bg-secondary rounded-md p-2 text-sm focus:ring-2 focus:ring-inset focus:ring-primary/50 outline-none transition" rows={3} />
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-text-secondary mb-1">{t('modal.nextActionDueDate', language)}</label>
@@ -178,8 +182,13 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onClose, on
             </div>
         </div>
 
-        {/* Key Contacts (Full Width) */}
-        <div className="pt-4">
+        {/* Optional details, collapsed unless they already contain data */}
+        <details open={hasDetails} className="group rounded-lg border border-border">
+        <summary className="cursor-pointer select-none px-4 py-3 text-sm font-semibold text-primary list-none flex items-center gap-2">
+            <span className="transition-transform group-open:rotate-90">▸</span>{t('detailsMore', language)}
+        </summary>
+        <div className="px-4 pb-4 space-y-6">
+        <div className="pt-2">
             <h4 className="text-base font-semibold text-text-primary border-b border-border pb-2">{t('keyContacts', language)}</h4>
             <div className="space-y-3 mt-3">
             {formData.keyContacts.map((contact, index) => (
@@ -209,11 +218,13 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onClose, on
                 {renderDynamicList('competitors', 'knownCompetitors', 'modal.addCompetitor')}
             </div>
         </div>
+        </div>
+        </details>
 
         {/* Actions */}
         <div className="flex justify-end gap-3 pt-6">
             <button type="button" onClick={onClose} className="px-4 py-2 bg-secondary text-text-primary text-sm font-semibold rounded-md hover:bg-border dark:hover:bg-slate-600 transition">{t('modal.cancel', language)}</button>
-            <button type="submit" className="px-4 py-2 bg-primary text-white text-sm font-semibold rounded-md hover:bg-primary/90 transition">{t(isEditMode ? 'modal.saveChanges' : 'modal.addCustomer', language)}</button>
+            <button type="submit" className="px-4 py-2 bg-primary text-on-primary text-sm font-semibold rounded-md hover:bg-primary/90 transition">{t(isEditMode ? 'modal.saveChanges' : 'modal.addCustomer', language)}</button>
         </div>
       </form>
     </Modal>
