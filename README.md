@@ -1,20 +1,50 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# AI 客戶管理系統
 
-# Run and deploy your AI Studio app
+以業務人員日常工作為核心設計的 AI CRM：打開就知道今天該聯絡誰、該說什麼，做完一鍵記錄。
 
-This contains everything you need to run your app locally.
+## 主要功能
 
-View your app in AI Studio: https://ai.studio/apps/drive/1Emb8zgEOMymVp8-1eniVFQxw5PYcE35I
+- **今日工作台**：依「逾期 → 今天到期 → 客戶變冷（14 天未聯絡）→ 未設下一步」與加權金額自動排序，可一鍵完成、延後或設定行動，並取得 AI 一句話建議。
+- **客戶管理**：列表 / 看板（拖拉變更階段）、多欄位搜尋、進階篩選、批次變更狀態或設定跟進、刪除可復原。
+- **AI 助理**（每位客戶獨立對話、串流回覆、可停止 / 重試）
+  - 建議下一步 → 一鍵設為下一步行動
+  - 草擬郵件 → 複製或以郵件程式開啟並自動記錄互動
+  - 關係摘要、會前簡報 → 可複製或存成備註
+- **快速記錄**：語音輸入、「AI 整理」把零散筆記整理成互動摘要，並建議下一步、新痛點與競爭對手。
+- **智慧建檔**：貼上郵件 / 簽名檔 / 名片文字，AI 自動預填客戶表單。
+- **結案原因**：客戶移到「已成交 / 已流失」時自動詢問原因，供儀表板分析。
+- **儀表板**：銷售管道、加權預測、成交率、階段轉換率與停留天數、每週活動量、成交 / 流失原因與 AI 規律分析。
+- **資料**：自動保存在瀏覽器（localStorage），可匯出 JSON 備份 / CSV（Excel 可直接開啟）及匯入。
+- 繁中 / 英文、深色模式、偏好設定自動記憶、行動裝置版面。
 
-## Run Locally
+### 鍵盤快捷鍵
 
-**Prerequisites:**  Node.js
+| 按鍵 | 功能 |
+|---|---|
+| `N` | 新增客戶 |
+| `/` | 搜尋客戶 |
+| `L` | 記錄互動 |
+| `1` / `2` / `3` | 今日工作 / 客戶管理 / 儀表板 |
+| `?` | 顯示快捷鍵 |
+| `Ctrl/⌘ + Enter` | 送出互動記錄 |
 
+## 本機執行
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+需要 Node.js 18+。
+
+```bash
+npm install
+echo "GEMINI_API_KEY=你的金鑰" > .env.local
+npm run dev        # http://localhost:3000
+```
+
+其他指令：`npm test`（單元測試）、`npm run typecheck`、`npm run build`、`npm run preview`。
+
+## 架構說明
+
+- Gemini API 金鑰只存在伺服器端：瀏覽器呼叫 `POST /api/ai`，由 `server/aiProxy.ts` 轉發（目前掛在 Vite dev / preview 伺服器上）。
+- `lib/insights.ts`：今日工作排序與儀表板指標（純函式，有單元測試）。
+- `lib/storage.ts`：本機保存、匯入 / 匯出。
+- `services/geminiService.ts`：提示詞與結構化輸出（JSON schema）。
+
+> 正式部署時，需將 `server/aiProxy.ts` 的 `createAIHandler` 掛到實際的後端或 Serverless 平台，並視需要加上登入驗證。

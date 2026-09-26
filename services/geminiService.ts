@@ -1,295 +1,268 @@
-import { GoogleGenAI, Type } from "@google/genai";
-import { Customer, Interaction } from '../types';
+// Schema type names (mirrors @google/genai's Type enum without bundling the SDK in the browser).
+const Type = { OBJECT: 'OBJECT', STRING: 'STRING', NUMBER: 'NUMBER', ARRAY: 'ARRAY' } as const;
+import { Customer, CustomerStatus, InteractionType, NextAction } from '../types';
+import { todayISO, addDays } from '../lib/dates';
 
-// Initialize the GoogleGenAI client with the API key from environment variables.
-// The API key MUST be set in the environment variable `process.env.API_KEY`.
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
+// All AI calls go through the server-side proxy at /api/ai, which holds the Gemini key.
 
-const MAX_RETRIES = 3;
-// Increased initial backoff time to better handle stricter rate limits.
-const INITIAL_BACKOFF_MS = 2000;
+export type Language = 'en' | 'zh';
 
-// A utility function to introduce a delay.
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-// Represents a message in the chat, used for building the prompt history.
-interface ChatMessage {
-    role: 'user' | 'model';
-    text: string;
+export interface ChatTurn {
+  role: 'user' | 'model';
+  text: string;
 }
 
-/**
- * A private function that wraps the Gemini API call with a retry mechanism.
- * It handles 429 "Resource Exhausted" errors by waiting and retrying with exponential backoff and jitter.
- * @param prompt The prompt string to send to the model.
- * @returns A promise that resolves to the generated text content.
- * @throws An error if the API call fails after all retries or for non-rate-limit reasons.
- */
-const generateContentWithRetry = async (prompt: string): Promise<string> => {
-  let attempt = 0;
-  let backoff = INITIAL_BACKOFF_MS;
+export type AIErrorCode = 'rate_limited' | 'missing_api_key' | 'network' | 'upstream_error' | 'bad_response';
 
-  while (attempt < MAX_RETRIES) {
-    try {
-      const response = await ai.models.generateContent({
-          model: 'gemini-2.5-flash',
-          contents: prompt,
-      });
-      return response.text.trim();
-    } catch (error: any) {
-      // Check if the error is a rate limit error.
-      const errorMessage = (error.message || error.toString()).toLowerCase();
-      const isRateLimitError = errorMessage.includes('429') || 
-                               errorMessage.includes('resource_exhausted') ||
-                               errorMessage.includes('quota');
-      
-      if (isRateLimitError && attempt < MAX_RETRIES - 1) {
-        console.warn(`Rate limit exceeded. Retrying in ${Math.round(backoff / 1000)}s... (Attempt ${attempt + 1}/${MAX_RETRIES})`);
-        await delay(backoff);
-        attempt++;
-        // Exponentially increase backoff and add jitter to prevent thundering herd issues.
-        backoff = backoff * 2 + Math.random() * 1000;
-      } else {
-        // If it's not a rate limit error or we've exhausted all retries, throw the error.
-        console.error(`API call failed on attempt ${attempt + 1}.`, error);
-        
-        // Propagate a more specific error for rate limiting issues.
-        if (isRateLimitError) {
-             throw new Error("The AI service is temporarily busy due to high demand. Please try again in a few moments.");
-        }
-        throw error;
-      }
-    }
+export class AIError extends Error {
+  constructor(public code: AIErrorCode) {
+    super(code);
   }
-  // This line should be unreachable if MAX_RETRIES > 0, but it satisfies TypeScript's requirement for a return path.
-  throw new Error('Failed to get response from AI after multiple retries.');
+}
+
+const ENDPOINT = '/api/ai';
+
+const post = async (body: object, signal?: AbortSignal): Promise<Response> => {
+  let res: Response;
+  try {
+    res = await fetch(ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal,
+    });
+  } catch (e) {
+    if ((e as Error).name === 'AbortError') throw e;
+    throw new AIError('network');
+  }
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    const code = (data.error as AIErrorCode) || 'upstream_error';
+    throw new AIError(['rate_limited', 'missing_api_key'].includes(code) ? code : 'upstream_error');
+  }
+  return res;
 };
 
+const generateText = async (contents: ChatTurn[], systemInstruction: string): Promise<string> => {
+  const res = await post({ contents, systemInstruction });
+  const data = await res.json();
+  return data.text as string;
+};
 
-/**
- * Creates a detailed prompt from customer data for the AI model.
- * @param customer The customer object.
- * @param task A string describing the specific task for the AI.
- * @param language The target language for the AI's response.
- * @returns A formatted string prompt.
- */
-const createPrompt = (customer: Customer, task: string, language: 'en' | 'zh'): string => {
-  // Serializes interactions into a readable list.
-  const interactionHistory = customer.interactions
-    .map(i => `- On ${i.date} (${i.type}): ${i.summary}`)
-    .join('\n');
+const generateJson = async <T>(prompt: string, systemInstruction: string, responseSchema: object): Promise<T> => {
+  const res = await post({ contents: [{ role: 'user', text: prompt }], systemInstruction, responseSchema });
+  const data = await res.json();
+  try {
+    return JSON.parse(data.text) as T;
+  } catch {
+    throw new AIError('bad_response');
+  }
+};
 
-  const customerDetails = [
+/** Streams a response, calling onChunk with the accumulated text. Returns the full text. */
+export const streamText = async (
+  contents: ChatTurn[],
+  systemInstruction: string,
+  onChunk: (fullText: string) => void,
+  signal?: AbortSignal,
+): Promise<string> => {
+  const res = await post({ contents, systemInstruction, stream: true }, signal);
+  if (!res.body) throw new AIError('bad_response');
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let full = '';
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    full += decoder.decode(value, { stream: true });
+    onChunk(full);
+  }
+  full += decoder.decode();
+  if (!full.trim()) throw new AIError('upstream_error');
+  onChunk(full);
+  return full.trim();
+};
+
+const languageName = (language: Language) => (language === 'zh' ? 'Traditional Chinese (繁體中文)' : 'English');
+
+export const buildCustomerContext = (customer: Customer): string => {
+  const lines = [
     `Name: ${customer.name}`,
     `Company: ${customer.company}`,
+    `Email: ${customer.email}`,
     `Current Status: ${customer.status}`,
+    `Last Contact: ${customer.lastContact}`,
     customer.dealValue ? `Estimated Deal Value: $${customer.dealValue.toLocaleString()}` : null,
-    customer.customerPainPoints?.length ? `Pain Points: ${customer.customerPainPoints.join(', ')}` : null,
+    customer.keyContacts?.length ? `Key Contacts: ${customer.keyContacts.map(c => `${c.name} (${c.title})`).join(', ')}` : null,
+    customer.customerPainPoints?.length ? `Pain Points: ${customer.customerPainPoints.join('; ')}` : null,
     customer.competitors?.length ? `Known Competitors: ${customer.competitors.join(', ')}` : null,
-    customer.nextAction ? `Next Action: ${customer.nextAction.description} (Due: ${customer.nextAction.dueDate})` : null,
-  ].filter(Boolean).map(line => `  - ${line}`).join('\n');
-  
-  const languageInstruction = `IMPORTANT: Your entire response must be in ${language === 'zh' ? 'Traditional Chinese (繁體中文)' : 'English'}.`;
-
-  return `
-    You are an expert B2B sales assistant AI. Your task is to analyze customer data and provide actionable insights.
-    
-    **Customer Profile:**
-    ${customerDetails}
-    
-    **Interaction History:**
-    ${interactionHistory || 'No interactions logged yet.'}
-    
-    **Your Task:**
-    ${task}
-    
-    Provide a concise, professional, and helpful response.
-    ${languageInstruction}
-  `;
+    customer.nextAction ? `Next Action: ${customer.nextAction.description} (Due: ${customer.nextAction.dueDate || 'unset'})` : null,
+    customer.closedReason ? `Closed Reason: ${customer.closedReason}` : null,
+  ].filter(Boolean).map(l => `- ${l}`);
+  const history = customer.interactions.slice(0, 30).map(i => `- ${i.date} (${i.type}): ${i.summary}`).join('\n');
+  return `**Customer Profile**\n${lines.join('\n')}\n\n**Interaction History (newest first)**\n${history || 'No interactions logged yet.'}`;
 };
 
-/**
- * Creates a detailed prompt for a conversational chat with the AI.
- * @param customer The customer object.
- * @param history The history of the current chat conversation.
- * @param newMessage The new message from the user.
- * @param language The target language for the AI's response.
- * @returns A formatted string prompt for the chat context.
- */
-const createChatPrompt = (customer: Customer, history: ChatMessage[], newMessage: string, language: 'en' | 'zh'): string => {
-    const interactionHistory = customer.interactions
-        .map(i => `- On ${i.date} (${i.type}): ${i.summary}`)
-        .join('\n');
+export const salesSystemInstruction = (customer: Customer, language: Language) =>
+  `You are an expert B2B sales assistant helping a sales representative. Today is ${todayISO()}.
+Be concise, concrete and actionable. Use Markdown (bold, bullet lists) when it improves readability.
+Your entire response must be in ${languageName(language)}.
 
-    const customerDetails = [
-        `Name: ${customer.name}`,
-        `Company: ${customer.company}`,
-        `Current Status: ${customer.status}`,
-        customer.dealValue ? `Estimated Deal Value: $${customer.dealValue.toLocaleString()}` : null,
-    ].filter(Boolean).map(line => `  - ${line}`).join('\n');
+${buildCustomerContext(customer)}`;
 
-    const formattedHistory = history
-        .map(msg => `${msg.role === 'user' ? 'User' : 'AI'}: ${msg.text}`)
-        .join('\n');
+// ---------- Structured tasks ----------
 
-    const languageInstruction = `IMPORTANT: Your entire response must be in ${language === 'zh' ? 'Traditional Chinese (繁體中文)' : 'English'}.`;
+export interface NextStepSuggestion extends NextAction {
+  reasoning: string;
+}
 
-    return `You are an expert B2B sales assistant AI. Your task is to analyze customer data and the ongoing conversation to provide helpful insights to a sales representative.
+export const suggestNextStep = async (customer: Customer, language: Language): Promise<NextStepSuggestion> => {
+  const result = await generateJson<NextStepSuggestion>(
+    'Suggest a single, concrete next step that moves this deal forward, a realistic due date (YYYY-MM-DD, on or after today), and a one or two sentence reasoning.',
+    salesSystemInstruction(customer, language),
+    {
+      type: Type.OBJECT,
+      properties: {
+        description: { type: Type.STRING },
+        dueDate: { type: Type.STRING, description: 'YYYY-MM-DD' },
+        reasoning: { type: Type.STRING },
+      },
+      required: ['description', 'dueDate', 'reasoning'],
+    },
+  );
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(result.dueDate) || result.dueDate < todayISO()) {
+    result.dueDate = addDays(todayISO(), 3);
+  }
+  return result;
+};
 
-**Customer Profile for Context:**
-${customerDetails}
+export interface EmailDraft {
+  subject: string;
+  body: string;
+}
 
-**Full Interaction History with this Customer:**
-${interactionHistory || 'No interactions logged yet.'}
+export const draftFollowUpEmail = (customer: Customer, language: Language): Promise<EmailDraft> =>
+  generateJson<EmailDraft>(
+    `Draft a personalized, professional and friendly follow-up email to ${customer.name} that moves the deal forward, based on the most recent interaction and the profile. Plain text body (no Markdown), with greeting and a closing signed "[Your Name]".`,
+    salesSystemInstruction(customer, language),
+    {
+      type: Type.OBJECT,
+      properties: { subject: { type: Type.STRING }, body: { type: Type.STRING } },
+      required: ['subject', 'body'],
+    },
+  );
+
+export const MEETING_BRIEF_PROMPT = `Generate a pre-meeting briefing that can be scanned in 5 minutes, with these Markdown sections:
+1. **Customer Snapshot** 2. **Interaction Summary** 3. **Current Situation** (pain points, competitors, next action) 4. **Suggested Agenda & Questions**`;
+
+export const SUMMARY_PROMPT = 'Summarize the key points and overall sentiment of the relationship in 2-3 sentences, then list the main opportunity and the main risk.';
+
+// Short proactive summaries are cached per customer state to save API calls.
+const summaryCache = new Map<string, string>();
+const summaryKey = (c: Customer, language: Language) =>
+  `${c.id}|${language}|${c.status}|${c.lastContact}|${c.interactions.length}|${c.nextAction?.description ?? ''}`;
+
+export const getCachedProactiveSummary = (customer: Customer, language: Language) =>
+  summaryCache.get(summaryKey(customer, language));
+
+export const getProactiveSummary = async (customer: Customer, language: Language): Promise<string> => {
+  const key = summaryKey(customer, language);
+  const cached = summaryCache.get(key);
+  if (cached) return cached;
+  const text = await generateText(
+    [{ role: 'user', text: 'In ONE short sentence (max 30 words), tell me what to do with this customer today and why. No preamble.' }],
+    salesSystemInstruction(customer, language),
+  );
+  summaryCache.set(key, text);
+  return text;
+};
+
+// ---------- Data capture ----------
+
+export interface ExtractedCustomer {
+  name: string;
+  company: string;
+  email: string;
+  dealValue?: number;
+  keyContacts?: { name: string; title: string }[];
+  customerPainPoints?: string[];
+  competitors?: string[];
+  nextActionDescription?: string;
+  nextActionDueDate?: string;
+  interactionSummary?: string;
+}
+
+export const extractCustomerFromText = (text: string, language: Language): Promise<ExtractedCustomer> =>
+  generateJson<ExtractedCustomer>(
+    `Extract CRM customer data from the following text (an email, business card, signature or notes). Use empty strings for unknown required fields. Do not invent data. Today is ${todayISO()}.
+
 ---
-**Current Conversation with Sales Rep:**
-${formattedHistory}
-User: ${newMessage}
+${text}
+---`,
+    `You extract structured data for a CRM. Free-text fields (pain points, next action, summary) must be written in ${languageName(language)}; keep names, company and email as written.`,
+    {
+      type: Type.OBJECT,
+      properties: {
+        name: { type: Type.STRING },
+        company: { type: Type.STRING },
+        email: { type: Type.STRING },
+        dealValue: { type: Type.NUMBER },
+        keyContacts: {
+          type: Type.ARRAY,
+          items: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, title: { type: Type.STRING } }, required: ['name', 'title'] },
+        },
+        customerPainPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
+        competitors: { type: Type.ARRAY, items: { type: Type.STRING } },
+        nextActionDescription: { type: Type.STRING },
+        nextActionDueDate: { type: Type.STRING, description: 'YYYY-MM-DD' },
+        interactionSummary: { type: Type.STRING, description: 'One-sentence summary of the text as an interaction note' },
+      },
+      required: ['name', 'company', 'email'],
+    },
+  );
 
-**Your Task:**
-Respond to the user's last message ("${newMessage}") by providing a concise, professional, and helpful answer based on all the information provided. Use Markdown for formatting if it improves readability (e.g., lists, bold text).
-${languageInstruction}
-`;
+export interface OrganizedNotes {
+  type: InteractionType;
+  summary: string;
+  nextActionDescription?: string;
+  nextActionDueDate?: string;
+  newPainPoints?: string[];
+  newCompetitors?: string[];
+}
+
+export const organizeMeetingNotes = async (customer: Customer, notes: string, language: Language): Promise<OrganizedNotes> => {
+  const result = await generateJson<OrganizedNotes>(
+    `Turn these rough notes from my latest interaction into a clean interaction log entry. Also suggest the next action (with a due date on or after today) if one is implied, and list any NEW pain points or competitors not already in the profile.
+
+Notes:
+${notes}`,
+    salesSystemInstruction(customer, language),
+    {
+      type: Type.OBJECT,
+      properties: {
+        type: { type: Type.STRING, enum: Object.values(InteractionType) },
+        summary: { type: Type.STRING },
+        nextActionDescription: { type: Type.STRING },
+        nextActionDueDate: { type: Type.STRING, description: 'YYYY-MM-DD' },
+        newPainPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
+        newCompetitors: { type: Type.ARRAY, items: { type: Type.STRING } },
+      },
+      required: ['type', 'summary'],
+    },
+  );
+  if (!Object.values(InteractionType).includes(result.type)) result.type = InteractionType.NOTE;
+  return result;
 };
 
-// Helper to handle API call errors and return appropriate translated messages.
-const handleApiError = (error: any, language: 'en' | 'zh', contextForLogging: string): string => {
-    console.error(`Error ${contextForLogging} after retries:`, error);
-    
-    // Specific rate limit error message
-    if (error.message?.includes("The AI service is temporarily busy")) {
-        return language === 'zh' 
-            ? 'AI 服務暫時因需求量大而忙碌。請稍後再試。' 
-            : error.message;
-    }
-    
-    // Generic error message
-    return language === 'zh'
-        ? '獲取 AI 回應時發生錯誤。請檢查主控台以獲取詳細資訊。'
-        : `An error occurred while fetching the AI response. Please check the console for details.`;
-};
+// ---------- Analytics ----------
 
-/**
- * Generates a suggestion for the next follow-up action for a given customer.
- * @param customer The customer to get a suggestion for.
- * @param language The target language for the AI's response.
- * @returns A promise that resolves to the AI-generated suggestion string.
- */
-export const getFollowUpSuggestion = async (customer: Customer, language: 'en' | 'zh'): Promise<string> => {
-  const task = "Based on the profile and history, suggest a single, concrete, and actionable next step to move the sales process forward. Explain your reasoning briefly.";
-  const prompt = createPrompt(customer, task, language);
-  try {
-    return await generateContentWithRetry(prompt);
-  } catch (error) {
-    return handleApiError(error, language, 'generating follow-up suggestion');
-  }
-};
-
-/**
- * Summarizes the entire interaction history with a customer.
- * @param customer The customer whose interactions are to be summarized.
- * @param language The target language for the AI's response.
- * @returns A promise that resolves to the AI-generated summary string.
- */
-export const summarizeInteractions = async (customer: Customer, language: 'en' | 'zh'): Promise<string> => {
-  const task = "Summarize the key points and overall sentiment of the interaction history in 2-3 sentences. Identify any potential opportunities or risks.";
-  const prompt = createPrompt(customer, task, language);
-  try {
-    return await generateContentWithRetry(prompt);
-  } catch (error) {
-    return handleApiError(error, language, 'summarizing interactions');
-  }
-};
-
-/**
- * Drafts a follow-up email based on the customer's data.
- * @param customer The customer to draft an email for.
- * @param language The target language for the AI's response.
- * @returns A promise resolving to the email draft string.
- */
-export const draftFollowUpEmail = async (customer: Customer, language: 'en' | 'zh'): Promise<string> => {
-    const task = `Draft a personalized follow-up email to the customer. The email should be professional, friendly, and aim to move the sales process forward. Base it on the most recent interaction and the customer's overall profile. Structure it like a real email with a subject line, greeting, body, and closing.
-
-    Example structure:
-    **Subject:** [Your Subject]
-    
-    Hi ${customer.name.split(' ')[0]},
-    
-    [Email Body]
-    
-    Best regards,
-    [Your Name]`;
-    const prompt = createPrompt(customer, task, language);
-  
-    try {
-      return await generateContentWithRetry(prompt);
-    } catch (error) {
-      return handleApiError(error, language, 'drafting email');
-    }
-};
-
-/**
- * Generates a pre-meeting briefing document.
- * @param customer The customer for whom to generate the brief.
- * @param language The target language for the AI's response.
- * @returns A promise resolving to the briefing string.
- */
-export const generateMeetingBriefing = async (customer: Customer, language: 'en' | 'zh'): Promise<string> => {
-    const task = `Generate a one-page pre-meeting briefing document. It should be structured with clear headings for each section:
-1.  **Customer Snapshot:** Key company and contact info, status, and deal value.
-2.  **Interaction History Summary:** Key takeaways and sentiment from past interactions.
-3.  **Current Situation:** Pain points, known competitors, and the proposed next action.
-4.  **Suggested Meeting Agenda:** Key topics and questions to discuss to advance the deal.
-    
-Keep the briefing concise and easy to scan in 5 minutes. Use Markdown for formatting.`;
-    const prompt = createPrompt(customer, task, language);
-  
-    try {
-      return await generateContentWithRetry(prompt);
-    } catch (error) {
-      // FIX: Corrected the syntax of the catch block.
-      return handleApiError(error, language, 'generating briefing');
-    }
-};
-
-/**
- * Generates a conversational response from the AI based on chat history.
- * @param customer The customer context for the conversation.
- * @param history The history of the current chat.
- * @param newMessage The latest message from the user.
- * @param language The target language for the AI's response.
- * @returns A promise that resolves to the AI-generated chat response.
- */
-export const getChatResponse = async (customer: Customer, history: ChatMessage[], newMessage: string, language: 'en' | 'zh'): Promise<string> => {
-    // Exclude the initial welcome message from history sent to the model, as it's just UI context.
-    const filteredHistory = history.filter((_, index) => index > 0);
-    const prompt = createChatPrompt(customer, filteredHistory, newMessage, language);
-    try {
-        return await generateContentWithRetry(prompt);
-    } catch (error) {
-        return handleApiError(error, language, 'generating chat response');
-    }
-};
-
-/**
- * Generates a proactive, quick summary for a customer.
- * @param customer The customer to summarize.
- * @param language The target language for the AI's response.
- * @returns A promise resolving to a concise summary.
- */
-export const getProactiveSummary = async (customer: Customer, language: 'en' | 'zh'): Promise<string> => {
-  const task = `
-    Provide a very brief, scannable summary (2-3 sentences) of this customer's current situation. 
-    Focus on:
-    1.  Their current status and deal value.
-    2.  The key takeaway from the most recent interaction.
-    3.  A single, immediate opportunity or risk.
-    Use Markdown for emphasis (e.g., **bold** text).`;
-  const prompt = createPrompt(customer, task, language);
-
-  try {
-    return await generateContentWithRetry(prompt);
-  } catch (error) {
-    return handleApiError(error, language, 'generating proactive summary');
-  }
+export const analyzeClosedDeals = (customers: Customer[], language: Language): Promise<string> => {
+  const closed = customers
+    .filter(c => c.status === CustomerStatus.CLOSED_WON || c.status === CustomerStatus.CLOSED_LOST)
+    .map(c => `- ${c.status} | ${c.company} | $${c.dealValue ?? 0} | reason: ${c.closedReason || 'n/a'} | competitors: ${c.competitors?.join(', ') || 'n/a'}`)
+    .join('\n');
+  return generateText(
+    [{ role: 'user', text: `Closed deals:\n${closed || 'none'}\n\nIdentify the recurring patterns behind wins and losses, and give 3 concrete recommendations for the sales team. Keep it under 150 words.` }],
+    `You are a sales operations analyst. Use Markdown. Respond in ${languageName(language)}.`,
+  );
 };

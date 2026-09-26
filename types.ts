@@ -53,6 +53,14 @@ export interface Customer {
   // Proactive Task Management
   nextAction?: NextAction;
   closedReason?: string; // For Closed-Lost/Won analysis
+  createdAt?: string; // 'YYYY-MM-DD'
+  statusHistory?: StatusChange[]; // Oldest first; used for stage-duration analytics
+}
+
+// A record of when a customer entered a pipeline stage.
+export interface StatusChange {
+  status: CustomerStatus;
+  date: string; // 'YYYY-MM-DD'
 }
 
 // Enum for the types of AI suggestions available.

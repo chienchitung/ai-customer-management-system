@@ -1,371 +1,410 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { Customer, Interaction, CustomerStatus, KeyContact, InteractionType } from './types';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { Customer, Interaction, CustomerStatus, InteractionType, NextAction } from './types';
 import CustomerDashboard from './components/CustomerDashboard';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
 import AddCustomerModal from './components/AddCustomerModal';
-import { ViewListIcon, ViewGridIcon, PlusIcon, SunIcon, MoonIcon, ChatbotIcon } from './components/icons';
-import { t } from './localization';
+import TodayView from './components/TodayView';
+import { CloseReasonModal, CompleteActionModal, SmartCaptureModal, ShortcutsModal } from './components/Dialogs';
+import { useToast } from './components/Toast';
+import { ViewListIcon, ViewGridIcon, PlusIcon, SunIcon, MoonIcon, ChatbotIcon, SparklesIcon, DatabaseIcon } from './components/icons';
+import { t, tf } from './localization';
+import { generateId } from './lib/ids';
+import { addDays, todayISO } from './lib/dates';
+import { withStatus } from './lib/insights';
+import { createDemoCustomers } from './data/demo';
+import { Prefs, loadPrefs, savePrefs, loadCustomers, saveCustomers, exportJSON, exportCSV, downloadFile, parseCustomers } from './lib/storage';
 
-// Function to generate a unique ID.
-export const generateId = () => `id_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+export { generateId };
 
-// Initial mock data for customers to demonstrate the application's features.
-const initialCustomers: Customer[] = [
-  {
-    id: '1',
-    name: 'Eleanor Vance',
-    company: 'Innovate Corp',
-    email: 'eleanor.v@innovate.com',
-    status: CustomerStatus.PROSPECT,
-    lastContact: '2024-07-20',
-    dealValue: 75000,
-    customerPainPoints: ['Manual data entry is time-consuming', 'Lack of integration with existing tools'],
-    competitors: ['OldGuard Solutions'],
-    keyContacts: [
-        { id: generateId(), name: 'David Chen', title: 'CTO' }
-    ],
-    nextAction: { description: 'Send over technical whitepaper for AI integration.', dueDate: '2024-08-05' },
-    interactions: [
-      { id: 'int1_1', type: InteractionType.EMAIL, date: '2024-07-20', summary: 'Sent follow-up email about the proposal.' },
-      { id: 'int1_2', type: InteractionType.CALL, date: '2024-07-15', summary: 'Initial discovery call. Client showed strong interest in AI integration features and is excited about the potential.' },
-    ],
-  },
-  {
-    id: '2',
-    name: 'Marcus Holloway',
-    company: 'Cyber Solutions',
-    email: 'marcus.h@cybersolutions.net',
-    status: CustomerStatus.NEGOTIATION,
-    lastContact: '2024-07-22',
-    dealValue: 120000,
-    customerPainPoints: ['Security compliance concerns', 'High cost of current provider'],
-    keyContacts: [
-        { id: generateId(), name: 'Sarah Jenkins', title: 'Head of Security' },
-        { id: generateId(), name: 'Tom Riley', title: 'IT Director' }
-    ],
-    competitors: ['Legacy Systems Inc.', 'SecureNet'],
-    interactions: [
-      { id: 'int2_1', type: InteractionType.MEETING, date: '2024-07-22', summary: 'Demo of the premium tier. They raised some concerns about the implementation timeline but were impressed with the features.' },
-      { id: 'int2_2', type: InteractionType.EMAIL, date: '2024-07-18', summary: 'Confirmed meeting and sent agenda.' },
-    ],
-  },
-  {
-    id: '3',
-    name: 'Chloe Decker',
-    company: 'Logistics Prime',
-    email: 'chloe.d@logiprime.com',
-    status: CustomerStatus.LEAD,
-    lastContact: '2024-07-25',
-    dealValue: 45000,
-    interactions: [
-        { id: 'int3_1', type: InteractionType.NOTE, date: '2024-07-25', summary: 'New lead from marketing webinar. Downloaded our e-book on supply chain optimization.' },
-    ],
-  },
-  {
-    id: '4',
-    name: 'Aidan Gallagher',
-    company: 'Quantum Dynamics',
-    status: CustomerStatus.CLOSED_WON,
-    email: 'aidan.g@quantum.dev',
-    lastContact: '2024-06-30',
-    dealValue: 95000,
-    closedReason: 'Superior feature set compared to competitors.',
-    interactions: [
-      { id: 'int4_1', type: InteractionType.EMAIL, date: '2024-06-30', summary: 'Contract signed. Onboarding scheduled.' },
-    ],
-  },
-   {
-    id: '5',
-    name: 'Javier Castillo',
-    company: 'HealthBridge',
-    email: 'javier.c@healthbridge.io',
-    status: CustomerStatus.LEAD,
-    lastContact: '2024-07-28',
-    dealValue: 60000,
-    interactions: [],
-  },
-   {
-    id: '6',
-    name: 'Isabelle Rossi',
-    company: 'Fintech United',
-    email: 'isabelle.r@finu.com',
-    status: CustomerStatus.PROSPECT,
-    lastContact: '2024-07-19',
-    dealValue: 85000,
-    interactions: [
-      { id: 'int6_1', type: InteractionType.CALL, date: '2024-07-19', summary: 'Good conversation, they are evaluating options and we are on the shortlist.' },
-    ],
-  },
-  {
-    id: '7',
-    name: 'Kenji Tanaka',
-    company: 'AutoDrive Inc.',
-    status: CustomerStatus.CLOSED_LOST,
-    email: 'kenji.t@autodrive.com',
-    lastContact: '2024-07-10',
-    dealValue: 110000,
-    closedReason: 'Decided to stay with their current provider due to budget constraints.',
-    interactions: [
-      { id: 'int7_1', type: InteractionType.EMAIL, date: '2024-07-10', summary: 'Received email informing us they will not be moving forward at this time.' },
-    ],
-  },
-];
+type MainView = Prefs['mainView'];
 
-type ViewMode = 'list' | 'kanban';
-type MainView = 'management' | 'dashboard';
-type Language = 'en' | 'zh';
-type Theme = 'light' | 'dark';
+const isClosed = (s: CustomerStatus) => s === CustomerStatus.CLOSED_WON || s === CustomerStatus.CLOSED_LOST;
+
+const isTypingTarget = (el: EventTarget | null) =>
+  el instanceof HTMLElement && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName));
 
 /**
  * Main application component.
- * Manages the entire application state including customers, selected customer, and current view.
+ * Owns customer data (persisted locally), user preferences and all dialogs.
  */
 const App: React.FC = () => {
-  const [customers, setCustomers] = useState<Customer[]>(initialCustomers);
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>('1');
-  const [viewMode, setViewMode] = useState<ViewMode>('list');
-  const [mainView, setMainView] = useState<MainView>('management');
+  const toast = useToast();
+  const [customers, setCustomers] = useState<Customer[]>(() => loadCustomers(createDemoCustomers()));
+  const [prefs, setPrefs] = useState<Prefs>(loadPrefs);
+  const { language, theme, viewMode, mainView, isAIAssistantOpen } = prefs;
+  const updatePrefs = (patch: Partial<Prefs>) => setPrefs(p => ({ ...p, ...patch }));
+
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [customerToEdit, setCustomerToEdit] = useState<Customer | null>(null);
-  const [language, setLanguage] = useState<Language>('en');
-  const [theme, setTheme] = useState<Theme>('light');
-  const [animationKey, setAnimationKey] = useState(0);
-  const [isAIAssistantOpen, setIsAIAssistantOpen] = useState(true);
+  const [prefill, setPrefill] = useState<Partial<Customer> | null>(null);
+  const pendingInteraction = useRef<string | undefined>();
+  const [isCaptureOpen, setIsCaptureOpen] = useState(false);
+  const [closePrompt, setClosePrompt] = useState<{ id: string; status: CustomerStatus } | null>(null);
+  const [completeId, setCompleteId] = useState<string | null>(null);
+  const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
+  const [isDataMenuOpen, setIsDataMenuOpen] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
 
+  // Persist data and preferences.
+  const warnedSaveFailure = useRef(false);
   useEffect(() => {
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
+    if (!saveCustomers(customers) && !warnedSaveFailure.current) {
+      warnedSaveFailure.current = true;
+      toast(t('data.saveFailed', language), { tone: 'error' });
     }
-  }, [theme]);
-  
+  }, [customers]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => savePrefs(prefs), [prefs]);
+
   useEffect(() => {
-    setAnimationKey(prev => prev + 1);
-  }, [mainView]);
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+    document.documentElement.lang = language === 'zh' ? 'zh-Hant' : 'en';
+  }, [theme, language]);
 
-  const selectedCustomer = useMemo(() => {
-    return customers.find(c => c.id === selectedCustomerId) || null;
-  }, [selectedCustomerId, customers]);
-  
-  const handleOpenAddModal = () => {
+  const selectedCustomer = useMemo(
+    () => customers.find(c => c.id === selectedCustomerId) || null,
+    [selectedCustomerId, customers],
+  );
+
+  // Select the first customer on desktop when entering management with nothing selected.
+  useEffect(() => {
+    if (mainView === 'management' && !selectedCustomerId && customers.length && window.innerWidth >= 768) {
+      setSelectedCustomerId(customers[0].id);
+    }
+  }, [mainView]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ---------- Customer mutations ----------
+
+  const updateCustomer = useCallback((id: string, fn: (c: Customer) => Customer) => {
+    setCustomers(prev => prev.map(c => (c.id === id ? fn(c) : c)));
+  }, []);
+
+  const handleAddInteraction = useCallback((customerId: string, data: Omit<Interaction, 'id'>) => {
+    updateCustomer(customerId, c => ({
+      ...c,
+      interactions: [{ ...data, id: generateId() }, ...c.interactions],
+      lastContact: !c.lastContact || data.date > c.lastContact ? data.date : c.lastContact,
+    }));
+  }, [updateCustomer]);
+
+  const handleUpdateCustomer = useCallback((customerId: string, data: Partial<Omit<Customer, 'id'>>) => {
+    if (data.status) {
+      const { status, ...rest } = data;
+      updateCustomer(customerId, c => ({ ...withStatus(c, status, todayISO()), ...rest }));
+      if (isClosed(status)) setClosePrompt({ id: customerId, status });
+    } else {
+      updateCustomer(customerId, c => ({ ...c, ...data }));
+    }
+  }, [updateCustomer]);
+
+  const handleSetNextAction = useCallback((customerId: string, nextAction: NextAction | undefined) => {
+    updateCustomer(customerId, c => ({ ...c, nextAction }));
+  }, [updateCustomer]);
+
+  const handleSnooze = useCallback((customerId: string, days: number) => {
+    updateCustomer(customerId, c => c.nextAction
+      ? { ...c, nextAction: { ...c.nextAction, dueDate: addDays(c.nextAction.dueDate && c.nextAction.dueDate > todayISO() ? c.nextAction.dueDate : todayISO(), days) } }
+      : c);
+  }, [updateCustomer]);
+
+  const handleComplete = (customerId: string, log: { type: InteractionType; summary: string } | null, next: NextAction | null) => {
+    if (log) handleAddInteraction(customerId, { ...log, date: todayISO() });
+    handleSetNextAction(customerId, next ?? undefined);
+    setCompleteId(null);
+  };
+
+  const handleDeleteCustomers = useCallback((ids: string[]) => {
+    const snapshot = customers;
+    setCustomers(prev => prev.filter(c => !ids.includes(c.id)));
+    if (selectedCustomerId && ids.includes(selectedCustomerId)) setSelectedCustomerId(null);
+    toast(t('deleted', language), { actionLabel: t('undo', language), onAction: () => setCustomers(snapshot) });
+  }, [customers, selectedCustomerId, language, toast]);
+
+  const handleBulkUpdate = useCallback((ids: string[], patch: { status?: CustomerStatus; followUpDays?: number }) => {
+    setCustomers(prev => prev.map(c => {
+      if (!ids.includes(c.id)) return c;
+      let next = c;
+      if (patch.status) next = withStatus(next, patch.status, todayISO());
+      if (patch.followUpDays !== undefined) {
+        next = { ...next, nextAction: { description: next.nextAction?.description || tf('todayView.defaultAction', language, { name: next.name }), dueDate: addDays(todayISO(), patch.followUpDays) } };
+      }
+      return next;
+    }));
+  }, [language]);
+
+  // ---------- Customer modal ----------
+
+  const openAddModal = useCallback(() => {
     setCustomerToEdit(null);
+    setPrefill(null);
+    pendingInteraction.current = undefined;
     setIsCustomerModalOpen(true);
-  };
+  }, []);
 
-  const handleOpenEditModal = (customer: Customer) => {
+  const openEditModal = useCallback((customer: Customer) => {
     setCustomerToEdit(customer);
+    setPrefill(null);
     setIsCustomerModalOpen(true);
-  };
+  }, []);
 
-  const handleCloseModal = () => {
+  const closeCustomerModal = () => {
     setIsCustomerModalOpen(false);
     setCustomerToEdit(null);
+    setPrefill(null);
   };
 
-  const handleAddInteraction = (customerId: string, interactionData: Omit<Interaction, 'id'>) => {
-    setCustomers(prevCustomers =>
-      prevCustomers.map(customer => {
-        if (customer.id === customerId) {
-          const newInteraction: Interaction = { ...interactionData, id: generateId() };
-          return {
-            ...customer,
-            interactions: [newInteraction, ...customer.interactions],
-            lastContact: newInteraction.date,
-          };
-        }
-        return customer;
-      })
-    );
-  };
-  
-  const handleUpdateCustomer = (customerId: string, updatedData: Partial<Omit<Customer, 'id'>>) => {
-    setCustomers(prev => prev.map(c => c.id === customerId ? { ...c, ...updatedData } : c));
-  };
-  
   const handleSaveCustomer = (data: Partial<Customer>, customerId?: string) => {
     if (customerId) {
-        // Update existing customer
-        handleUpdateCustomer(customerId, data);
+      handleUpdateCustomer(customerId, data);
     } else {
-        // Add new customer
-        const newCustomer: Customer = {
-            id: generateId(),
-            interactions: [],
-            status: CustomerStatus.LEAD,
-            lastContact: new Date().toISOString().split('T')[0],
-            name: data.name!,
-            company: data.company!,
-            email: data.email!,
-            ...data,
-        };
-        setCustomers(prev => [newCustomer, ...prev]);
-        setSelectedCustomerId(newCustomer.id);
+      const today = todayISO();
+      const summary = pendingInteraction.current;
+      const newCustomer: Customer = {
+        id: generateId(),
+        interactions: summary ? [{ id: generateId(), type: InteractionType.NOTE, date: today, summary }] : [],
+        status: CustomerStatus.LEAD,
+        lastContact: today,
+        createdAt: today,
+        statusHistory: [{ status: CustomerStatus.LEAD, date: today }],
+        name: data.name!,
+        company: data.company!,
+        email: data.email ?? '',
+        ...data,
+      };
+      pendingInteraction.current = undefined;
+      setCustomers(prev => [newCustomer, ...prev]);
+      setSelectedCustomerId(newCustomer.id);
+      updatePrefs({ mainView: 'management' });
     }
-    handleCloseModal();
+    closeCustomerModal();
   };
+
+  const handleExtracted = (data: Partial<Customer>, interactionSummary?: string) => {
+    setIsCaptureOpen(false);
+    setCustomerToEdit(null);
+    setPrefill(data);
+    pendingInteraction.current = interactionSummary;
+    setIsCustomerModalOpen(true);
+  };
+
+  // ---------- Kanban ----------
 
   const handleMoveCustomer = (draggedId: string, newStatus: CustomerStatus, newIndexInColumn: number) => {
-    setCustomers(currentCustomers => {
-        const draggedCustomer = currentCustomers.find(c => c.id === draggedId);
-        if (!draggedCustomer) {
-            return currentCustomers;
-        }
-
-        // Create a new list without the dragged customer.
-        const customersWithoutDragged = currentCustomers.filter(c => c.id !== draggedId);
-        
-        // Find all customers that are currently in the target column (from the list without the dragged item).
-        const targetColumnCustomers = customersWithoutDragged.filter(c => c.status === newStatus);
-
-        // Find the customer we are inserting before.
-        const insertBeforeCustomer = targetColumnCustomers[newIndexInColumn];
-
-        // Update the status of the dragged customer.
-        const updatedDraggedCustomer = { ...draggedCustomer, status: newStatus };
-
-        let insertionIndex;
-
-        if (insertBeforeCustomer) {
-            // If we are dropping on top of another customer, find its global index in the list
-            // (without the dragged customer) and insert before it.
-            insertionIndex = customersWithoutDragged.findIndex(c => c.id === insertBeforeCustomer.id);
-        } else {
-            // If we are dropping at the end of a column or into an empty one.
-            if (targetColumnCustomers.length > 0) {
-                // Find the last customer in the target column and insert after it.
-                const lastCustomerInColumn = targetColumnCustomers[targetColumnCustomers.length - 1];
-                insertionIndex = customersWithoutDragged.findIndex(c => c.id === lastCustomerInColumn.id) + 1;
-            } else {
-                // If the target column is empty, we can simply append the customer.
-                // This is safe and will work for the Kanban view.
-                insertionIndex = customersWithoutDragged.length;
-            }
-        }
-        
-        const newCustomers = [...customersWithoutDragged];
-        newCustomers.splice(insertionIndex, 0, updatedDraggedCustomer);
-
-        return newCustomers;
+    const dragged = customers.find(c => c.id === draggedId);
+    if (!dragged) return;
+    const statusChanged = dragged.status !== newStatus;
+    setCustomers(current => {
+      const draggedCustomer = current.find(c => c.id === draggedId);
+      if (!draggedCustomer) return current;
+      const without = current.filter(c => c.id !== draggedId);
+      const column = without.filter(c => c.status === newStatus);
+      const before = column[newIndexInColumn];
+      const updated = withStatus(draggedCustomer, newStatus, todayISO());
+      let insertionIndex: number;
+      if (before) insertionIndex = without.findIndex(c => c.id === before.id);
+      else if (column.length) insertionIndex = without.findIndex(c => c.id === column[column.length - 1].id) + 1;
+      else insertionIndex = without.length;
+      const next = [...without];
+      next.splice(insertionIndex, 0, updated);
+      return next;
     });
+    if (statusChanged && isClosed(newStatus)) setClosePrompt({ id: draggedId, status: newStatus });
   };
 
+  // ---------- Data menu ----------
+
+  const stamp = () => todayISO();
+  const handleImport = async (file: File) => {
+    const list = parseCustomers(await file.text());
+    if (!list) return toast(t('data.importFail', language), { tone: 'error' });
+    if (!window.confirm(tf('data.confirmImport', language, { n: list.length }))) return;
+    const snapshot = customers;
+    setCustomers(list);
+    setSelectedCustomerId(null);
+    toast(tf('data.importOk', language, { n: list.length }), { actionLabel: t('undo', language), onAction: () => setCustomers(snapshot) });
+  };
+
+  // ---------- Navigation & shortcuts ----------
+
+  const openCustomer = useCallback((id: string) => {
+    setSelectedCustomerId(id);
+    updatePrefs({ mainView: 'management', viewMode: 'list' });
+  }, []);
+
+  const anyModalOpen = isCustomerModalOpen || isCaptureOpen || !!closePrompt || !!completeId || isShortcutsOpen;
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey || anyModalOpen || isTypingTarget(e.target)) return;
+      const focus = (id: string) => setTimeout(() => document.getElementById(id)?.focus(), 50);
+      switch (e.key) {
+        case 'n': case 'N': e.preventDefault(); openAddModal(); break;
+        case '/': e.preventDefault(); updatePrefs({ mainView: 'management', viewMode: 'list' }); focus('customer-search'); break;
+        case 'l': case 'L': if (selectedCustomerId) { e.preventDefault(); updatePrefs({ mainView: 'management', viewMode: 'list' }); focus('interaction-log-input'); } break;
+        case '1': updatePrefs({ mainView: 'today' }); break;
+        case '2': updatePrefs({ mainView: 'management' }); break;
+        case '3': updatePrefs({ mainView: 'dashboard' }); break;
+        case '?': setIsShortcutsOpen(true); break;
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [anyModalOpen, selectedCustomerId, openAddModal]);
+
+  const navButton = (view: MainView, labelKey: string, key: string) => (
+    <button
+      onClick={() => updatePrefs({ mainView: view })}
+      title={`${t(labelKey, language)} (${key})`}
+      className={`border-b-2 pb-1 text-sm font-semibold transition-all duration-200 focus:outline-none whitespace-nowrap ${
+        mainView === view ? 'border-primary text-primary' : 'border-transparent text-text-secondary hover:text-text-primary hover:border-border'
+      }`}
+    >
+      {t(labelKey, language)}
+    </button>
+  );
+
+  const iconBtn = 'h-9 w-9 flex items-center justify-center rounded-full bg-surface border border-border text-text-secondary hover:bg-secondary transition-colors active:scale-95';
+  const closeTarget = closePrompt ? customers.find(c => c.id === closePrompt.id) ?? null : null;
 
   return (
     <div className="h-screen bg-background font-sans flex flex-col overflow-hidden">
-      <header className="bg-surface/80 backdrop-blur-md border-b border-border p-4 flex justify-between items-center sticky top-0 z-20">
-        <div className="flex items-center gap-4">
-            <h1 className="text-xl font-bold text-text-primary whitespace-nowrap">AI Customer Management System</h1>
-            <nav className="flex items-center gap-4">
-                <button
-                onClick={() => setMainView('management')}
-                className={`border-b-2 pb-1 text-sm font-semibold transition-all duration-200 focus:outline-none ${
-                    mainView === 'management'
-                    ? 'border-primary text-primary'
-                    : 'border-transparent text-text-secondary hover:text-text-primary hover:border-border'
-                }`}
-                >
-                {t('management', language)}
-                </button>
-                <button
-                onClick={() => setMainView('dashboard')}
-                className={`border-b-2 pb-1 text-sm font-semibold transition-all duration-200 focus:outline-none ${
-                    mainView === 'dashboard'
-                    ? 'border-primary text-primary'
-                    : 'border-transparent text-text-secondary hover:text-text-primary hover:border-border'
-                }`}
-                >
-                {t('dashboard', language)}
-                </button>
-            </nav>
+      <header className="bg-surface/80 backdrop-blur-md border-b border-border px-4 py-3 flex flex-wrap gap-3 justify-between items-center sticky top-0 z-20">
+        <div className="flex items-center gap-4 min-w-0">
+          <h1 className="text-lg font-bold text-text-primary whitespace-nowrap hidden lg:block">{language === 'zh' ? 'AI 客戶管理系統' : 'AI Customer Management'}</h1>
+          <nav className="flex items-center gap-4">
+            {navButton('today', 'today', '1')}
+            {navButton('management', 'management', '2')}
+            {navButton('dashboard', 'dashboard', '3')}
+          </nav>
         </div>
-        <div className="flex items-center gap-3">
-            <button
-                onClick={() => setLanguage(lang => (lang === 'en' ? 'zh' : 'en'))}
-                className="h-9 w-9 flex items-center justify-center rounded-full bg-surface border border-border text-text-secondary hover:bg-secondary transition-colors text-sm font-semibold active:scale-95"
-                title={t('buttons.toggleLanguage', language)}
-            >
-                {language === 'en' ? t('langName', 'zh') : t('langName', 'en')}
-            </button>
-            <button
-                onClick={() => setTheme(t => (t === 'light' ? 'dark' : 'light'))}
-                className="h-9 w-9 flex items-center justify-center rounded-full bg-surface border border-border text-text-secondary hover:bg-secondary transition-colors active:scale-95"
-                title={t('buttons.toggleTheme', language)}
-            >
-                {theme === 'light' ? <SunIcon className="w-5 h-5" /> : <MoonIcon className="w-5 h-5" />}
-            </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => updatePrefs({ language: language === 'en' ? 'zh' : 'en' })} className={`${iconBtn} text-sm font-semibold`} title={t('buttons.toggleLanguage', language)}>
+            {language === 'en' ? t('langName', 'zh') : t('langName', 'en')}
+          </button>
+          <button onClick={() => updatePrefs({ theme: theme === 'light' ? 'dark' : 'light' })} className={iconBtn} title={t('buttons.toggleTheme', language)}>
+            {theme === 'light' ? <SunIcon className="w-5 h-5" /> : <MoonIcon className="w-5 h-5" />}
+          </button>
 
-            {mainView === 'management' && (
+          <div className="relative">
+            <button onClick={() => setIsDataMenuOpen(o => !o)} className={iconBtn} title={t('data.menu', language)} aria-haspopup="menu" aria-expanded={isDataMenuOpen}>
+              <DatabaseIcon className="w-5 h-5" />
+            </button>
+            {isDataMenuOpen && (
               <>
-                <button
-                    onClick={() => setIsAIAssistantOpen(prev => !prev)}
-                    className={`px-3 h-9 flex items-center justify-center gap-2 rounded-lg border transition-colors active:scale-95 ${
-                        isAIAssistantOpen 
-                        ? 'bg-primary border-primary text-white' 
-                        : 'bg-surface border-border text-text-secondary hover:bg-secondary'
-                    }`}
-                    title={t('buttons.toggleAI', language)}
-                >
-                    <ChatbotIcon className="w-5 h-5" />
-                    <span className="text-sm font-semibold">{t('aiAssistant', language)}</span>
-                </button>
-                <div className="bg-surface border border-border p-1 rounded-lg flex items-center text-text-secondary">
-                    <button 
-                        onClick={() => setViewMode('list')} 
-                        className={`p-1.5 rounded-md transition-transform active:scale-95 ${viewMode === 'list' ? 'bg-primary text-white' : 'hover:text-text-primary'}`} 
-                        title={t('buttons.listView', language)}
-                    >
-                        <ViewListIcon className="w-5 h-5"/>
+                <div className="fixed inset-0 z-30" onClick={() => setIsDataMenuOpen(false)} />
+                <div role="menu" className="absolute right-0 mt-2 w-60 bg-surface border border-border rounded-lg shadow-lg z-40 py-1 text-sm">
+                  {[
+                    ['data.exportJson', () => downloadFile(`customers-${stamp()}.json`, exportJSON(customers), 'application/json')],
+                    ['data.exportCsv', () => downloadFile(`customers-${stamp()}.csv`, exportCSV(customers), 'text/csv;charset=utf-8')],
+                    ['data.importJson', () => fileInput.current?.click()],
+                    ['data.resetDemo', () => {
+                      if (!window.confirm(t('data.confirmReset', language))) return;
+                      const snapshot = customers;
+                      setCustomers(createDemoCustomers());
+                      setSelectedCustomerId(null);
+                      toast(t('data.resetDemo', language), { actionLabel: t('undo', language), onAction: () => setCustomers(snapshot) });
+                    }],
+                  ].map(([key, fn]) => (
+                    <button key={key as string} role="menuitem" onClick={() => { setIsDataMenuOpen(false); (fn as () => void)(); }} className="w-full text-left px-4 py-2 hover:bg-secondary">
+                      {t(key as string, language)}
                     </button>
-                    <button 
-                        onClick={() => setViewMode('kanban')} 
-                        className={`p-1.5 rounded-md transition-transform active:scale-95 ${viewMode === 'kanban' ? 'bg-primary text-white' : 'hover:text-text-primary'}`} 
-                        title={t('buttons.kanbanView', language)}
-                    >
-                        <ViewGridIcon className="w-5 h-5"/>
-                    </button>
+                  ))}
                 </div>
-                <button
-                    onClick={handleOpenAddModal}
-                    className="h-9 w-9 flex items-center justify-center rounded-full bg-primary text-white hover:bg-primary/90 transition-all active:scale-95"
-                    aria-label={t('addNewCustomer', language)}
-                >
-                    <PlusIcon className="w-5 h-5" />
-                </button>
               </>
             )}
+            <input ref={fileInput} type="file" accept="application/json,.json" className="hidden"
+              onChange={e => { const f = e.target.files?.[0]; if (f) handleImport(f); e.target.value = ''; }} />
+          </div>
+
+          {mainView === 'management' && (
+            <>
+              <button
+                onClick={() => updatePrefs({ isAIAssistantOpen: !isAIAssistantOpen })}
+                className={`px-3 h-9 hidden lg:flex items-center justify-center gap-2 rounded-lg border transition-colors active:scale-95 ${
+                  isAIAssistantOpen ? 'bg-primary border-primary text-white' : 'bg-surface border-border text-text-secondary hover:bg-secondary'
+                }`}
+                title={t('buttons.toggleAI', language)}
+              >
+                <ChatbotIcon className="w-5 h-5" />
+                <span className="text-sm font-semibold hidden xl:inline">{t('aiAssistant', language)}</span>
+              </button>
+              <div className="bg-surface border border-border p-1 rounded-lg flex items-center text-text-secondary">
+                <button onClick={() => updatePrefs({ viewMode: 'list' })} className={`p-1.5 rounded-md transition-transform active:scale-95 ${viewMode === 'list' ? 'bg-primary text-white' : 'hover:text-text-primary'}`} title={t('buttons.listView', language)}>
+                  <ViewListIcon className="w-5 h-5" />
+                </button>
+                <button onClick={() => updatePrefs({ viewMode: 'kanban' })} className={`p-1.5 rounded-md transition-transform active:scale-95 ${viewMode === 'kanban' ? 'bg-primary text-white' : 'hover:text-text-primary'}`} title={t('buttons.kanbanView', language)}>
+                  <ViewGridIcon className="w-5 h-5" />
+                </button>
+              </div>
+            </>
+          )}
+          <button onClick={() => setIsCaptureOpen(true)} className="px-3 h-9 flex items-center gap-2 rounded-lg border border-primary text-primary hover:bg-primary/10 transition active:scale-95" title={t('capture.title', language)}>
+            <SparklesIcon className="w-5 h-5" />
+            <span className="text-sm font-semibold hidden sm:inline">{t('capture.button', language)}</span>
+          </button>
+          <button onClick={openAddModal} className="h-9 w-9 flex items-center justify-center rounded-full bg-primary text-white hover:bg-primary/90 transition-all active:scale-95" aria-label={t('addNewCustomer', language)} title={`${t('addNewCustomer', language)} (N)`}>
+            <PlusIcon className="w-5 h-5" />
+          </button>
         </div>
       </header>
-      
+
       <main className="p-4 md:p-6 flex-grow min-h-0">
-        <div key={animationKey} className="animate-fade-in h-full">
-            {mainView === 'management' ? (
-                <CustomerDashboard
-                    viewMode={viewMode}
-                    customers={customers}
-                    selectedCustomer={selectedCustomer}
-                    onSelectCustomer={setSelectedCustomerId}
-                    onAddInteraction={handleAddInteraction}
-                    onUpdateCustomer={handleUpdateCustomer}
-                    onOpenAddCustomerModal={handleOpenAddModal}
-                    onEditCustomer={handleOpenEditModal}
-                    language={language}
-                    isAIAssistantOpen={isAIAssistantOpen}
-                    onMoveCustomer={handleMoveCustomer}
-                />
-            ) : (
-                <AnalyticsDashboard customers={customers} language={language} />
-            )}
+        <div key={mainView} className="animate-fade-in h-full">
+          {mainView === 'today' && (
+            <TodayView
+              customers={customers}
+              language={language}
+              onOpenCustomer={openCustomer}
+              onComplete={id => setCompleteId(id)}
+              onSnooze={handleSnooze}
+              onSetNextAction={handleSetNextAction}
+            />
+          )}
+          {mainView === 'management' && (
+            <CustomerDashboard
+              viewMode={viewMode}
+              customers={customers}
+              selectedCustomer={selectedCustomer}
+              onSelectCustomer={setSelectedCustomerId}
+              onAddInteraction={handleAddInteraction}
+              onUpdateCustomer={handleUpdateCustomer}
+              onOpenAddCustomerModal={openAddModal}
+              onEditCustomer={openEditModal}
+              language={language}
+              isAIAssistantOpen={isAIAssistantOpen}
+              onMoveCustomer={handleMoveCustomer}
+              onSetNextAction={handleSetNextAction}
+              onSnooze={handleSnooze}
+              onCompleteAction={id => setCompleteId(id)}
+              onDeleteCustomers={handleDeleteCustomers}
+              onBulkUpdate={handleBulkUpdate}
+            />
+          )}
+          {mainView === 'dashboard' && <AnalyticsDashboard customers={customers} language={language} />}
         </div>
       </main>
 
       <AddCustomerModal
         isOpen={isCustomerModalOpen}
-        onClose={handleCloseModal}
+        onClose={closeCustomerModal}
         onSave={handleSaveCustomer}
         customerToEdit={customerToEdit}
+        prefill={prefill}
         language={language}
       />
+      <SmartCaptureModal isOpen={isCaptureOpen} onClose={() => setIsCaptureOpen(false)} onExtracted={handleExtracted} language={language} />
+      <CloseReasonModal
+        customer={closeTarget}
+        status={closePrompt?.status ?? null}
+        language={language}
+        onSkip={() => setClosePrompt(null)}
+        onSave={reason => {
+          if (closePrompt) updateCustomer(closePrompt.id, c => ({ ...c, closedReason: reason, nextAction: undefined }));
+          setClosePrompt(null);
+        }}
+      />
+      <CompleteActionModal customer={completeId ? customers.find(c => c.id === completeId) ?? null : null} onClose={() => setCompleteId(null)} onComplete={handleComplete} language={language} />
+      <ShortcutsModal isOpen={isShortcutsOpen} onClose={() => setIsShortcutsOpen(false)} language={language} />
     </div>
   );
 };

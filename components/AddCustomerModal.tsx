@@ -4,17 +4,19 @@ import { t } from '../localization';
 import { Customer, KeyContact } from '../types';
 import { PlusIcon, TrashIcon } from './icons';
 
-const generateId = () => `id_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+import { generateId } from '../lib/ids';
 
 interface AddCustomerModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (data: Partial<Customer>, customerId?: string) => void;
   customerToEdit: Customer | null;
+  /** Pre-filled values for a new customer (e.g. from smart capture). */
+  prefill?: Partial<Customer> | null;
   language: 'en' | 'zh';
 }
 
-const getInitialState = (customer: Customer | null) => {
+const getInitialState = (customer: Partial<Customer> | null) => {
     if (customer) {
         return {
             name: customer.name || '',
@@ -43,15 +45,15 @@ const getInitialState = (customer: Customer | null) => {
 };
 
 
-const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onClose, onSave, customerToEdit, language }) => {
-  const [formData, setFormData] = useState(getInitialState(customerToEdit));
+const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onClose, onSave, customerToEdit, prefill, language }) => {
+  const [formData, setFormData] = useState(getInitialState(customerToEdit ?? prefill ?? null));
   const isEditMode = !!customerToEdit;
 
   useEffect(() => {
     if (isOpen) {
-        setFormData(getInitialState(customerToEdit));
+        setFormData(getInitialState(customerToEdit ?? prefill ?? null));
     }
-  }, [isOpen, customerToEdit]);
+  }, [isOpen, customerToEdit, prefill]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -93,10 +95,10 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onClose, on
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const { name, company, email, dealValue, keyContacts, customerPainPoints, competitors, nextAction } = formData;
-    if (!name || !company || !email) return;
+    if (!name.trim() || !company.trim()) return;
 
     const finalData: Partial<Customer> = {
-        name, company, email,
+        name: name.trim(), company: company.trim(), email: email.trim(),
         dealValue: dealValue ? parseFloat(dealValue) : undefined,
         keyContacts: keyContacts.filter(c => c.name.trim() !== ''),
         customerPainPoints: customerPainPoints.map(p => p.trim()).filter(p => p !== ''),
@@ -148,7 +150,7 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onClose, on
                 <h4 className="text-base font-semibold text-text-primary border-b border-border pb-2">{t('modal.primaryInfo', language)}</h4>
                 <div>
                   <label className="block text-sm font-medium text-text-secondary mb-1">{t('modal.fullName', language)}</label>
-                  <input type="text" name="name" value={formData.name} onChange={handleInputChange} className="w-full bg-secondary rounded-md p-2 text-sm focus:ring-2 focus:ring-inset focus:ring-primary/50 outline-none transition" required />
+                  <input type="text" name="name" value={formData.name} onChange={handleInputChange} className="w-full bg-secondary rounded-md p-2 text-sm focus:ring-2 focus:ring-inset focus:ring-primary/50 outline-none transition" required autoFocus />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-text-secondary mb-1">{t('modal.company', language)}</label>
@@ -156,7 +158,7 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onClose, on
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-text-secondary mb-1">{t('modal.emailAddress', language)}</label>
-                  <input type="email" name="email" value={formData.email} onChange={handleInputChange} className="w-full bg-secondary rounded-md p-2 text-sm focus:ring-2 focus:ring-inset focus:ring-primary/50 outline-none transition" required />
+                  <input type="email" name="email" value={formData.email} onChange={handleInputChange} className="w-full bg-secondary rounded-md p-2 text-sm focus:ring-2 focus:ring-inset focus:ring-primary/50 outline-none transition" />
                 </div>
                  <div>
                   <label className="block text-sm font-medium text-text-secondary mb-1">{t('modal.dealValue', language)}</label>

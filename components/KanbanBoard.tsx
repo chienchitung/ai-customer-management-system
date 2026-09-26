@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Customer, CustomerStatus } from '../types';
 // FIX: Import the 't' function for localization.
 import { t, translateStatus } from '../localization';
+import { todayISO } from '../lib/dates';
 import { PencilIcon, PlusIcon } from './icons';
 
 interface KanbanBoardProps {
@@ -65,6 +66,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
     };
     
     const columns = Object.values(CustomerStatus);
+    const today = todayISO();
 
     return (
         <div 
@@ -87,11 +89,9 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
                                     {translateStatus(status, language)}
                                 </h3>
                                 <span className="text-sm font-medium text-text-secondary">{customersInColumn.length}</span>
+                                <span className="text-xs text-text-secondary">· ${customersInColumn.reduce((sum, c) => sum + (c.dealValue ?? 0), 0).toLocaleString()}</span>
                             </div>
                             <div className="flex items-center">
-                                <button className="w-6 h-6 flex items-center justify-center text-text-secondary hover:bg-black/5 dark:hover:bg-white/10 rounded-md transition-colors">
-                                    <span className="font-bold -mt-1.5">...</span>
-                                </button>
                                 <button onClick={onOpenAddCustomerModal} className="w-6 h-6 flex items-center justify-center text-text-secondary hover:bg-black/5 dark:hover:bg-white/10 rounded-md transition-colors">
                                     <PlusIcon className="w-4 h-4" />
                                 </button>
@@ -128,12 +128,21 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
                                                 onEditCustomer(customer);
                                             }}
                                             className="p-1 rounded text-text-secondary hover:bg-secondary"
-                                            aria-label={`Edit ${customer.name}`}
+                                            aria-label={`${t('editCustomer', language)}: ${customer.name}`}
                                         >
                                             <PencilIcon className="w-4 h-4" />
                                         </button>
-                                        <div className="flex-grow">
-                                            <h4 className="font-medium text-sm text-text-primary">{customer.name}</h4>
+                                        <div className="flex-grow min-w-0">
+                                            <h4 className="font-medium text-sm text-text-primary truncate">{customer.name}</h4>
+                                            <p className="text-xs text-text-secondary truncate">{customer.company}</p>
+                                            <div className="flex items-center gap-2 mt-1 text-xs">
+                                                {customer.dealValue ? <span className="font-semibold text-primary">${customer.dealValue.toLocaleString()}</span> : null}
+                                                {customer.nextAction?.dueDate && (
+                                                    <span className={customer.nextAction.dueDate < today ? 'text-rose-600 dark:text-rose-400 font-semibold' : customer.nextAction.dueDate === today ? 'text-amber-600 dark:text-amber-400 font-semibold' : 'text-text-secondary'}>
+                                                        {customer.nextAction.dueDate}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>

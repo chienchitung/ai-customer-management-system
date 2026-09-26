@@ -1,9 +1,13 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { Customer, CustomerStatus, Interaction, InteractionType, KeyContact } from '../types';
-import { t, translateStatus } from '../localization';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { Customer, CustomerStatus, Interaction, InteractionType, KeyContact, NextAction } from '../types';
+import { t, tf, translateStatus, translateInteractionType } from '../localization';
 import AIAssistant from './AIAssistant';
 import KanbanBoard from './KanbanBoard';
-import { ArrowLeftIcon, CalendarIcon, IdentificationIcon, LightBulbIcon, PencilIcon, SearchIcon, FilterIcon } from './icons';
+import { aiErrorMessage } from './Dialogs';
+import { organizeMeetingNotes, OrganizedNotes } from '../services/geminiService';
+import { daysBetween, todayISO, addDays } from '../lib/dates';
+import { isOpen, STALE_DAYS } from '../lib/insights';
+import { ArrowLeftIcon, CalendarIcon, IdentificationIcon, LightBulbIcon, PencilIcon, SearchIcon, FilterIcon, SparklesIcon, MicrophoneIcon, TrashIcon, CheckIcon } from './icons';
 
 // Mapping customer statuses to specific Tailwind CSS classes for color-coding.
 export const statusColors: { [key in CustomerStatus]: { text: string; bg: string; border: string; dropdown: string } } = {
@@ -27,7 +31,23 @@ interface CustomerDashboardProps {
   onEditCustomer: (customer: Customer) => void;
   language: 'en' | 'zh';
   isAIAssistantOpen: boolean;
+  onSetNextAction: (customerId: string, action: NextAction | undefined) => void;
+  onSnooze: (customerId: string, days: number) => void;
+  onCompleteAction: (customerId: string) => void;
+  onDeleteCustomers: (ids: string[]) => void;
+  onBulkUpdate: (ids: string[], patch: { status?: CustomerStatus; followUpDays?: number }) => void;
 }
+
+const useMediaQuery = (query: string) => {
+  const [matches, setMatches] = useState(() => window.matchMedia(query).matches);
+  useEffect(() => {
+    const mql = window.matchMedia(query);
+    const onChange = () => setMatches(mql.matches);
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, [query]);
+  return matches;
+};
 
 const CustomerDashboard: React.FC<CustomerDashboardProps> = (props) => {
   if (props.viewMode === 'kanban') {
@@ -53,8 +73,25 @@ const ListView: React.FC<CustomerDashboardProps> = ({
   onOpenAddCustomerModal,
   onEditCustomer,
   language,
-  isAIAssistantOpen
+  isAIAssistantOpen,
+  onSetNextAction,
+  onSnooze,
+  onCompleteAction,
+  onDeleteCustomers,
+  onBulkUpdate,
 }) => {
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const toggleSelected = (id: string) => setSelectedIds(prev => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id); else next.add(id);
+        return next;
+    });
+    // Drop selections for customers that no longer exist.
+    useEffect(() => {
+        setSelectedIds(prev => new Set([...prev].filter(id => customers.some(c => c.id === id))));
+    }, [customers]);
+    const today = todayISO();
+    const isLargeScreen = useMediaQuery('(min-width: 1024px)');
     const [searchQuery, setSearchQuery] = useState('');
     const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
     const [statusFilter, setStatusFilter] = useState('all');
@@ -73,11 +110,15 @@ const ListView: React.FC<CustomerDashboardProps> = ({
     };
 
     const filteredCustomers = useMemo(() => {
+        const q = searchQuery.trim().toLowerCase();
         return customers
             .filter(customer =>
-                // Search Query Filter
-                customer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                customer.company.toLowerCase().includes(searchQuery.toLowerCase())
+                // Search across name, company, email and contacts
+                !q ||
+                customer.name.toLowerCase().includes(q) ||
+                customer.company.toLowerCase().includes(q) ||
+                customer.email.toLowerCase().includes(q) ||
+                (customer.keyContacts ?? []).some(k => k.name.toLowerCase().includes(q))
             )
             .filter(customer => {
                 // Status Filter
@@ -127,8 +168,10 @@ const ListView: React.FC<CustomerDashboardProps> = ({
                   <div className="flex items-center gap-2">
                     <div className="relative flex-grow">
                       <input
-                        type="text"
-                        placeholder={t('searchCustomer', language)}
+                        id="customer-search"
+                        type="search"
+                        aria-label={t('searchCustomer', language)}
+                        placeholder={`${t('searchCustomer', language)}  /`}
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="w-full bg-secondary border border-transparent rounded-md py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition"
@@ -174,26 +217,65 @@ const ListView: React.FC<CustomerDashboardProps> = ({
                     </div>
                   )}
                 </div>
+                {selectedIds.size > 0 && (
+                    <BulkBar
+                        count={selectedIds.size}
+                        language={language}
+                        onSelectAll={() => setSelectedIds(new Set(filteredCustomers.map(c => c.id)))}
+                        onClear={() => setSelectedIds(new Set())}
+                        onStatus={status => onBulkUpdate([...selectedIds], { status })}
+                        onFollowUp={() => onBulkUpdate([...selectedIds], { followUpDays: 3 })}
+                        onDelete={() => {
+                            if (window.confirm(tf('bulk.confirmDelete', language, { n: selectedIds.size }))) {
+                                onDeleteCustomers([...selectedIds]);
+                                setSelectedIds(new Set());
+                            }
+                        }}
+                    />
+                )}
                 <ul className="p-2 space-y-1 flex-grow overflow-y-auto">
-                {filteredCustomers.map(customer => (
+                {filteredCustomers.map(customer => {
+                    const due = customer.nextAction?.dueDate;
+                    const overdue = isOpen(customer) && !!due && due < today;
+                    const dueToday = isOpen(customer) && due === today;
+                    const since = customer.lastContact ? daysBetween(customer.lastContact, today) : null;
+                    const stale = isOpen(customer) && since !== null && since >= STALE_DAYS;
+                    return (
                     <li
                         key={customer.id}
                         onClick={() => onSelectCustomer(customer.id)}
-                        className={`p-3 rounded-md cursor-pointer transition-all ${
+                        className={`group p-3 rounded-md cursor-pointer transition-all flex gap-2 ${
                             selectedCustomer?.id === customer.id ? 'bg-primary/10' : 'hover:bg-secondary'
                         }`}
                     >
-                        <div className="flex justify-between items-start gap-2">
-                            <div>
-                                <h3 className="font-semibold text-text-primary">{customer.name}</h3>
-                                <p className="text-sm text-text-secondary">{customer.company}</p>
+                        <input
+                            type="checkbox"
+                            aria-label={customer.name}
+                            checked={selectedIds.has(customer.id)}
+                            onClick={e => e.stopPropagation()}
+                            onChange={() => toggleSelected(customer.id)}
+                            className={`accent-primary w-4 h-4 mt-1 flex-shrink-0 transition-opacity ${selectedIds.size ? 'opacity-100' : 'opacity-30 group-hover:opacity-100 focus:opacity-100'}`}
+                        />
+                        <div className="flex-grow min-w-0">
+                            <div className="flex justify-between items-start gap-2">
+                                <div className="min-w-0">
+                                    <h3 className="font-semibold text-text-primary truncate">{customer.name}</h3>
+                                    <p className="text-sm text-text-secondary truncate">{customer.company}</p>
+                                </div>
+                                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${statusColors[customer.status].bg} ${statusColors[customer.status].text}`}>
+                                    {translateStatus(customer.status, language)}
+                                </span>
                             </div>
-                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${statusColors[customer.status].bg} ${statusColors[customer.status].text}`}>
-                                {translateStatus(customer.status, language)}
-                            </span>
+                            <div className="flex items-center gap-2 mt-1 text-xs text-text-secondary">
+                                {customer.dealValue ? <span className="font-medium">${customer.dealValue.toLocaleString()}</span> : null}
+                                {since !== null && <span className={stale ? 'text-sky-600 dark:text-sky-400 font-medium' : ''}>{tf('lastContactAgo', language, { n: since })}</span>}
+                                {overdue && <span className="text-rose-600 dark:text-rose-400 font-semibold">● {t('todayView.overdue', language)}</span>}
+                                {dueToday && <span className="text-amber-600 dark:text-amber-400 font-semibold">● {t('todayView.dueToday', language)}</span>}
+                            </div>
                         </div>
                     </li>
-                ))}
+                    );
+                })}
                 </ul>
             </div>
 
@@ -223,17 +305,30 @@ const ListView: React.FC<CustomerDashboardProps> = ({
                             onAddInteraction={onAddInteraction}
                             onUpdateCustomer={onUpdateCustomer}
                             onEditCustomer={() => onEditCustomer(selectedCustomer)}
+                            onSetNextAction={onSetNextAction}
+                            onSnooze={onSnooze}
+                            onCompleteAction={onCompleteAction}
+                            onDelete={() => {
+                                if (window.confirm(tf('confirmDeleteOne', language, { name: selectedCustomer.name }))) onDeleteCustomers([selectedCustomer.id]);
+                            }}
                             language={language}
                         />
+                        {!isLargeScreen && (
+                            <div className="h-[600px]">
+                                <AIAssistant customer={selectedCustomer} language={language} onAddInteraction={onAddInteraction} onSetNextAction={onSetNextAction} />
+                            </div>
+                        )}
                     </div>
+                    {isLargeScreen && (
                     <aside
                         className={`flex-shrink-0 transition-all duration-300 ease-in-out ${isAIAssistantOpen ? 'w-96' : 'w-0 opacity-0 pointer-events-none'}`}
                         aria-hidden={!isAIAssistantOpen}
                     >
                         <div className="h-full overflow-hidden">
-                            <AIAssistant customer={selectedCustomer} language={language} />
+                            <AIAssistant customer={selectedCustomer} language={language} onAddInteraction={onAddInteraction} onSetNextAction={onSetNextAction} />
                         </div>
                     </aside>
+                    )}
                 </div>
                 ) : (
                 <div className="hidden md:flex flex-col items-center justify-center h-full text-text-secondary bg-surface rounded-lg border border-border">
@@ -272,8 +367,12 @@ const CustomerDetails: React.FC<{
   onAddInteraction: (customerId: string, interaction: Omit<Interaction, 'id'>) => void;
   onUpdateCustomer: (customerId: string, updatedData: Partial<Omit<Customer, 'id'>>) => void;
   onEditCustomer: () => void;
+  onSetNextAction: (customerId: string, action: NextAction | undefined) => void;
+  onSnooze: (customerId: string, days: number) => void;
+  onCompleteAction: (customerId: string) => void;
+  onDelete: () => void;
   language: 'en' | 'zh';
-}> = ({ customer, onAddInteraction, onUpdateCustomer, onEditCustomer, language }) => {
+}> = ({ customer, onAddInteraction, onUpdateCustomer, onEditCustomer, onSetNextAction, onSnooze, onCompleteAction, onDelete, language }) => {
     const [typeFilter, setTypeFilter] = useState<string>('all');
     const [startDateFilter, setStartDateFilter] = useState<string>('');
     const [endDateFilter, setEndDateFilter] = useState<string>('');
@@ -308,17 +407,30 @@ const CustomerDetails: React.FC<{
         <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
             <h2 className="text-3xl font-bold text-text-primary">{customer.name}</h2>
-            <p className="text-text-secondary mt-1">{customer.company} &middot; {customer.email}</p>
+            <p className="text-text-secondary mt-1">
+                {customer.company}
+                {customer.email && <> &middot; <a href={`mailto:${customer.email}`} className="hover:text-primary hover:underline">{customer.email}</a></>}
+            </p>
         </div>
         <div className="flex items-center gap-2">
+            <button
+                onClick={onDelete}
+                className="h-9 w-9 flex items-center justify-center rounded-full bg-surface border border-border text-text-secondary hover:text-rose-600 hover:bg-secondary transition-colors active:scale-95"
+                title={t('deleteCustomer', language)}
+                aria-label={t('deleteCustomer', language)}
+            >
+                <TrashIcon className="w-5 h-5" />
+            </button>
             <button 
                 onClick={onEditCustomer} 
                 className="h-9 w-9 flex items-center justify-center rounded-full bg-surface border border-border text-text-secondary hover:bg-secondary transition-colors active:scale-95"
                 title={t('editCustomer', language)}
+                aria-label={t('editCustomer', language)}
             >
                 <PencilIcon className="w-5 h-5" />
             </button>
             <select
+                aria-label={t('filters.status', language)}
                 value={customer.status}
                 onChange={(e) => onUpdateCustomer(customer.id, { status: e.target.value as CustomerStatus })}
                 className={`text-sm font-semibold px-3 py-1.5 rounded-md border-2 outline-none appearance-none focus:ring-2 focus:ring-primary/50 transition-all ${statusColors[customer.status].dropdown}`}
@@ -331,13 +443,19 @@ const CustomerDetails: React.FC<{
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <NextActionCard customer={customer} language={language} />
+            <NextActionCard
+                customer={customer}
+                language={language}
+                onComplete={() => onCompleteAction(customer.id)}
+                onSnooze={days => onSnooze(customer.id, days)}
+                onSet={action => onSetNextAction(customer.id, action)}
+            />
             <KeyContactsCard contacts={customer.keyContacts} language={language} />
         </div>
 
         <CustomerProfileCard customer={customer} language={language} />
         
-        <InteractionLogger customerId={customer.id} onAddInteraction={onAddInteraction} language={language} />
+        <InteractionLogger customer={customer} onAddInteraction={onAddInteraction} onUpdateCustomer={onUpdateCustomer} onSetNextAction={onSetNextAction} language={language} />
 
         <div className="bg-surface p-4 rounded-lg border border-border">
         <h3 className="text-xl font-bold text-text-primary mb-4">{t('interactionHistory', language)}</h3>
@@ -352,7 +470,7 @@ const CustomerDetails: React.FC<{
                     className="w-full mt-1 bg-surface border border-border rounded-md py-1.5 px-2 text-sm focus:ring-2 focus:ring-primary/50 outline-none transition"
                 >
                     <option value="all">{t('filters.all', language)}</option>
-                    {Object.values(InteractionType).map(it => <option key={it} value={it}>{it}</option>)}
+                    {Object.values(InteractionType).map(it => <option key={it} value={it}>{translateInteractionType(it, language)}</option>)}
                 </select>
             </div>
             <div className="lg:col-span-2">
@@ -392,9 +510,9 @@ const CustomerDetails: React.FC<{
                     <tr key={interaction.id} className="border-b border-border last:border-b-0 hover:bg-secondary">
                         <td className="p-2 whitespace-nowrap text-text-secondary">{interaction.date}</td>
                         <td className="p-2">
-                            <span className="font-semibold text-primary">{interaction.type}</span>
+                            <span className="font-semibold text-primary whitespace-nowrap">{translateInteractionType(interaction.type, language)}</span>
                         </td>
-                        <td className="p-2 text-text-primary">{interaction.summary}</td>
+                        <td className="p-2 text-text-primary whitespace-pre-wrap">{interaction.summary}</td>
                     </tr>
                     )) : (
                     <tr>
@@ -411,22 +529,86 @@ const CustomerDetails: React.FC<{
     );
 };
 
-const NextActionCard: React.FC<{customer: Customer, language: 'en' | 'zh'}> = ({ customer, language }) => (
+const NextActionCard: React.FC<{
+    customer: Customer;
+    language: 'en' | 'zh';
+    onComplete: () => void;
+    onSnooze: (days: number) => void;
+    onSet: (action: NextAction | undefined) => void;
+}> = ({ customer, language, onComplete, onSnooze, onSet }) => {
+    const [editing, setEditing] = useState(false);
+    const [desc, setDesc] = useState('');
+    const [due, setDue] = useState('');
+    const today = todayISO();
+    const action = customer.nextAction;
+
+    const startEdit = () => {
+        setDesc(action?.description ?? '');
+        setDue(action?.dueDate || addDays(today, 1));
+        setEditing(true);
+    };
+
+    const dueTone = !action?.dueDate ? 'text-text-secondary'
+        : action.dueDate < today ? 'text-rose-600 dark:text-rose-400'
+        : action.dueDate === today ? 'text-amber-600 dark:text-amber-400'
+        : 'text-text-secondary';
+    const dueLabel = !action?.dueDate ? '' 
+        : action.dueDate < today ? tf('nextActionCard.overdueBy', language, { n: daysBetween(action.dueDate, today) })
+        : action.dueDate === today ? t('nextActionCard.dueTodayLabel', language)
+        : `${t('dueDate', language)}: ${action.dueDate}`;
+
+    const smallBtn = 'text-xs px-2 py-1 rounded-md font-semibold transition active:scale-95';
+
+    return (
     <div className="bg-surface p-4 rounded-lg border border-border">
-        <h4 className="font-semibold text-text-primary mb-2">{t('nextAction', language)}</h4>
-        {customer.nextAction ? (
+        <div className="flex items-center justify-between mb-2">
+            <h4 className="font-semibold text-text-primary">{t('nextAction', language)}</h4>
+            {!editing && (
+                <button onClick={startEdit} className="p-1 rounded text-text-secondary hover:bg-secondary" aria-label={t('nextActionCard.edit', language)} title={t('nextActionCard.edit', language)}>
+                    <PencilIcon className="w-4 h-4" />
+                </button>
+            )}
+        </div>
+        {editing ? (
+            <form
+                className="space-y-2"
+                onSubmit={e => {
+                    e.preventDefault();
+                    onSet(desc.trim() ? { description: desc.trim(), dueDate: due } : undefined);
+                    setEditing(false);
+                }}
+            >
+                <textarea autoFocus value={desc} onChange={e => setDesc(e.target.value)} rows={2} className="w-full bg-secondary rounded-md p-2 text-sm focus:ring-2 focus:ring-primary/50 outline-none" />
+                <div className="flex gap-2 items-center">
+                    <input type="date" value={due} onChange={e => setDue(e.target.value)} className="bg-secondary rounded-md p-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/50" />
+                    <button type="submit" className={`${smallBtn} bg-primary text-white hover:bg-primary/90`}>{t('closeReason.save', language)}</button>
+                    <button type="button" onClick={() => setEditing(false)} className={`${smallBtn} bg-secondary hover:bg-border`}>{t('modal.cancel', language)}</button>
+                </div>
+            </form>
+        ) : action ? (
             <div>
-                <p className="text-text-primary">{customer.nextAction.description}</p>
-                <div className="flex items-center gap-2 mt-2 text-sm text-red-600 dark:text-red-400 font-medium">
-                    <CalendarIcon className="w-4 h-4" />
-                    <span>{t('dueDate', language)}: {customer.nextAction.dueDate}</span>
+                <p className="text-text-primary">{action.description}</p>
+                {dueLabel && (
+                    <div className={`flex items-center gap-2 mt-2 text-sm font-medium ${dueTone}`}>
+                        <CalendarIcon className="w-4 h-4" />
+                        <span>{dueLabel}</span>
+                    </div>
+                )}
+                <div className="flex flex-wrap gap-2 mt-3">
+                    <button onClick={onComplete} className={`${smallBtn} bg-primary text-white hover:bg-primary/90 flex items-center gap-1`}><CheckIcon className="w-3.5 h-3.5" />{t('nextActionCard.complete', language)}</button>
+                    <button onClick={() => onSnooze(1)} className={`${smallBtn} bg-secondary hover:bg-border`}>{t('nextActionCard.snooze', language)}</button>
+                    <button onClick={() => onSnooze(7)} className={`${smallBtn} bg-secondary hover:bg-border`}>{t('nextActionCard.snoozeWeek', language)}</button>
                 </div>
             </div>
         ) : (
-            <p className="text-text-secondary text-sm">{t('noNextAction', language)}</p>
+            <div>
+                <p className="text-text-secondary text-sm">{t('noNextAction', language)}</p>
+                <button onClick={startEdit} className={`${smallBtn} mt-2 bg-primary text-white hover:bg-primary/90`}>{t('todayView.setAction', language)}</button>
+            </div>
         )}
     </div>
-);
+    );
+};
 
 const KeyContactsCard: React.FC<{ contacts?: KeyContact[], language: 'en' | 'zh' }> = ({ contacts, language }) => (
     <div className="bg-surface p-4 rounded-lg border border-border">
@@ -476,68 +658,214 @@ const CustomerProfileCard: React.FC<{customer: Customer, language: 'en' | 'zh'}>
     </div>
 );
 
+// Minimal typing for the Web Speech API (not in the standard TS DOM lib).
+type SpeechRecognitionLike = {
+    lang: string; continuous: boolean; interimResults: boolean;
+    onresult: ((e: any) => void) | null; onend: (() => void) | null; onerror: (() => void) | null;
+    start: () => void; stop: () => void;
+};
+const getSpeechRecognition = (): (new () => SpeechRecognitionLike) | null =>
+    (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition || null;
+
 const InteractionLogger: React.FC<{ 
-    customerId: string; 
+    customer: Customer; 
     onAddInteraction: (customerId: string, interaction: Omit<Interaction, 'id'>) => void;
+    onUpdateCustomer: (customerId: string, updatedData: Partial<Omit<Customer, 'id'>>) => void;
+    onSetNextAction: (customerId: string, action: NextAction | undefined) => void;
     language: 'en' | 'zh'; 
-}> = ({ customerId, onAddInteraction, language }) => {
-  const [summary, setSummary] = React.useState('');
-  const [type, setType] = React.useState<InteractionType>(InteractionType.NOTE);
-  // FIX: Added a specific type for quick log keys to ensure type safety with the `t` function.
+}> = ({ customer, onAddInteraction, onUpdateCustomer, onSetNextAction, language }) => {
+  const [summary, setSummary] = useState('');
+  const [type, setType] = useState<InteractionType>(InteractionType.NOTE);
+  const [organizing, setOrganizing] = useState(false);
+  const [aiResult, setAiResult] = useState<OrganizedNotes | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [listening, setListening] = useState(false);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   type QuickLogKey = 'followUp' | 'voicemail' | 'meetingScheduled';
 
-  const handleSubmit = (e?: React.FormEvent, quickLogSummary?: string, quickLogType?: InteractionType) => {
-    if (e) e.preventDefault();
-    const currentSummary = quickLogSummary || summary;
-    if (!currentSummary.trim()) return;
-    
-    onAddInteraction(customerId, {
-      type: quickLogType || type,
-      summary: currentSummary,
-      date: new Date().toISOString().split('T')[0],
-    });
+  // Reset the draft when switching customers.
+  useEffect(() => {
     setSummary('');
-    if (!quickLogSummary) {
-        setType(InteractionType.NOTE);
-    }
+    setType(InteractionType.NOTE);
+    setAiResult(null);
+    setAiError(null);
+    recognitionRef.current?.stop();
+  }, [customer.id]);
+
+  useEffect(() => () => recognitionRef.current?.stop(), []);
+
+  const log = (text: string, interactionType: InteractionType) => {
+    onAddInteraction(customer.id, { type: interactionType, summary: text, date: todayISO() });
+  };
+
+  const handleSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!summary.trim()) return;
+    log(summary.trim(), type);
+    setSummary('');
+    setType(InteractionType.NOTE);
+    setAiResult(null);
   };
 
   const handleQuickLog = (templateKey: QuickLogKey, interactionType: InteractionType) => {
-      const logText = t(`quickLog.${templateKey}`, language);
-      handleSubmit(undefined, logText, interactionType);
+      log(t(`quickLog.${templateKey}`, language), interactionType);
   };
+
+  const organize = async () => {
+    setOrganizing(true);
+    setAiError(null);
+    try {
+      setAiResult(await organizeMeetingNotes(customer, summary, language));
+    } catch (err) {
+      setAiError(aiErrorMessage(err, language));
+    } finally {
+      setOrganizing(false);
+    }
+  };
+
+  const applyAll = () => {
+    if (!aiResult) return;
+    log(aiResult.summary, aiResult.type);
+    if (aiResult.nextActionDescription) {
+      onSetNextAction(customer.id, { description: aiResult.nextActionDescription, dueDate: aiResult.nextActionDueDate || addDays(todayISO(), 3) });
+    }
+    const pains = (aiResult.newPainPoints ?? []).filter(p => !(customer.customerPainPoints ?? []).includes(p));
+    const comps = (aiResult.newCompetitors ?? []).filter(c => !(customer.competitors ?? []).includes(c));
+    if (pains.length || comps.length) {
+      onUpdateCustomer(customer.id, {
+        customerPainPoints: [...(customer.customerPainPoints ?? []), ...pains],
+        competitors: [...(customer.competitors ?? []), ...comps],
+      });
+    }
+    setSummary('');
+    setAiResult(null);
+  };
+
+  const toggleDictation = () => {
+    if (listening) {
+      recognitionRef.current?.stop();
+      return;
+    }
+    const Recognition = getSpeechRecognition();
+    if (!Recognition) {
+      setAiError(t('logger.dictationUnsupported', language));
+      return;
+    }
+    const rec = new Recognition();
+    rec.lang = language === 'zh' ? 'zh-TW' : 'en-US';
+    rec.continuous = true;
+    rec.interimResults = false;
+    const base = summary ? `${summary.trimEnd()} ` : '';
+    let transcript = '';
+    rec.onresult = (e: any) => {
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) transcript += e.results[i][0].transcript;
+      }
+      setSummary(base + transcript);
+    };
+    rec.onend = () => setListening(false);
+    rec.onerror = () => setListening(false);
+    recognitionRef.current = rec;
+    rec.start();
+    setListening(true);
+  };
+
+  const chip = 'text-xs px-2 py-1 bg-secondary rounded-md hover:bg-border transition active:scale-95';
 
   return (
     <form onSubmit={handleSubmit} className="bg-surface p-4 rounded-lg border border-border">
       <h3 className="text-lg font-bold text-text-primary mb-2">{t('logNewInteraction', language)}</h3>
       <textarea
+        id="interaction-log-input"
         value={summary}
         onChange={e => setSummary(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSubmit(); }}
         placeholder={t('logInteractionPlaceholder', language)}
+        aria-label={t('logNewInteraction', language)}
         className="w-full bg-secondary rounded-md p-3 text-sm focus:ring-2 focus:ring-primary/50 outline-none transition"
         rows={3}
       />
       <div className="flex items-center gap-2 mt-2 flex-wrap">
-          <button type="button" onClick={() => handleQuickLog('followUp', InteractionType.EMAIL)} className="text-xs px-2 py-1 bg-secondary rounded-md hover:bg-border dark:hover:bg-slate-600 transition active:scale-95">{t('quickLog.followUp', language)}</button>
-          <button type="button" onClick={() => handleQuickLog('voicemail', InteractionType.CALL)} className="text-xs px-2 py-1 bg-secondary rounded-md hover:bg-border dark:hover:bg-slate-600 transition active:scale-95">{t('quickLog.voicemail', language)}</button>
-          <button type="button" onClick={() => handleQuickLog('meetingScheduled', InteractionType.MEETING)} className="text-xs px-2 py-1 bg-secondary rounded-md hover:bg-border dark:hover:bg-slate-600 transition active:scale-95">{t('quickLog.meetingScheduled', language)}</button>
+          <button type="button" onClick={() => handleQuickLog('followUp', InteractionType.EMAIL)} className={chip}>{t('quickLog.followUp', language)}</button>
+          <button type="button" onClick={() => handleQuickLog('voicemail', InteractionType.CALL)} className={chip}>{t('quickLog.voicemail', language)}</button>
+          <button type="button" onClick={() => handleQuickLog('meetingScheduled', InteractionType.MEETING)} className={chip}>{t('quickLog.meetingScheduled', language)}</button>
       </div>
-      <div className="flex justify-between items-center mt-3">
-        <select
-          value={type}
-          onChange={e => setType(e.target.value as InteractionType)}
-          className="bg-secondary rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-primary/50 outline-none transition appearance-none"
-        >
-          {Object.values(InteractionType).map(it => (
-            <option key={it} value={it}>{it}</option>
-          ))}
-        </select>
-        <button type="submit" className="px-4 py-2 bg-primary text-white text-sm font-semibold rounded-md hover:bg-primary/90 transition disabled:opacity-50 flex items-center gap-2 active:scale-95" disabled={!summary.trim()}>
-          {t('logInteraction', language)}
-        </button>
+
+      {aiError && <p role="alert" className="text-sm text-rose-600 dark:text-rose-400 mt-2">{aiError}</p>}
+
+      {aiResult && (
+        <div className="mt-3 p-3 rounded-md border border-primary/40 bg-primary/5 space-y-2 text-sm">
+          <p className="font-semibold flex items-center gap-1 text-primary"><SparklesIcon className="w-4 h-4" />{t('logger.aiResult', language)}</p>
+          <p><span className="font-semibold">{translateInteractionType(aiResult.type, language)}</span> · {aiResult.summary}</p>
+          {aiResult.nextActionDescription && (
+            <p className="flex items-center gap-1"><CalendarIcon className="w-4 h-4 text-text-secondary" />{aiResult.nextActionDescription} {aiResult.nextActionDueDate && <span className="text-text-secondary">({aiResult.nextActionDueDate})</span>}</p>
+          )}
+          {!!aiResult.newPainPoints?.length && <p><span className="text-text-secondary">{t('customerPainPoints', language)}:</span> {aiResult.newPainPoints.join('、')}</p>}
+          {!!aiResult.newCompetitors?.length && <p><span className="text-text-secondary">{t('knownCompetitors', language)}:</span> {aiResult.newCompetitors.join('、')}</p>}
+          <div className="flex gap-2 pt-1">
+            <button type="button" onClick={applyAll} className="px-3 py-1.5 bg-primary text-white text-xs font-semibold rounded-md hover:bg-primary/90 active:scale-95">{t('logger.saveAll', language)}</button>
+            <button type="button" onClick={() => { setSummary(aiResult.summary); setType(aiResult.type); setAiResult(null); }} className="px-3 py-1.5 bg-secondary text-xs font-semibold rounded-md hover:bg-border">{t('logger.applySummary', language)}</button>
+            <button type="button" onClick={() => setAiResult(null)} className="px-3 py-1.5 text-xs font-semibold rounded-md hover:bg-secondary">{t('modal.cancel', language)}</button>
+          </div>
+        </div>
+      )}
+
+      <div className="flex justify-between items-center mt-3 gap-2 flex-wrap">
+        <div className="flex items-center gap-2">
+          <select
+            value={type}
+            onChange={e => setType(e.target.value as InteractionType)}
+            aria-label={t('table.type', language)}
+            className="bg-secondary rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-primary/50 outline-none transition"
+          >
+            {Object.values(InteractionType).map(it => (
+              <option key={it} value={it}>{translateInteractionType(it, language)}</option>
+            ))}
+          </select>
+          <button type="button" onClick={toggleDictation} className={`px-3 py-2 text-sm rounded-md flex items-center gap-1 transition ${listening ? 'bg-rose-500 text-white animate-pulse' : 'bg-secondary hover:bg-border'}`} title={t('logger.dictate', language)}>
+            <MicrophoneIcon className="w-4 h-4" />
+            <span className="hidden sm:inline">{t(listening ? 'logger.stopDictate' : 'logger.dictate', language)}</span>
+          </button>
+        </div>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={organize} disabled={!summary.trim() || organizing} className="px-3 py-2 text-sm font-semibold rounded-md border border-primary text-primary hover:bg-primary/10 transition disabled:opacity-50 flex items-center gap-1">
+            <SparklesIcon className="w-4 h-4" />
+            {t(organizing ? 'logger.organizing' : 'logger.organize', language)}
+          </button>
+          <button type="submit" className="px-4 py-2 bg-primary text-white text-sm font-semibold rounded-md hover:bg-primary/90 transition disabled:opacity-50 flex items-center gap-2 active:scale-95" disabled={!summary.trim()}>
+            {t('logInteraction', language)}
+          </button>
+        </div>
       </div>
     </form>
   );
 };
+
+const BulkBar: React.FC<{
+    count: number;
+    language: 'en' | 'zh';
+    onSelectAll: () => void;
+    onClear: () => void;
+    onStatus: (status: CustomerStatus) => void;
+    onFollowUp: () => void;
+    onDelete: () => void;
+}> = ({ count, language, onSelectAll, onClear, onStatus, onFollowUp, onDelete }) => (
+    <div className="p-2 border-b border-border bg-primary/5 flex flex-wrap items-center gap-2 text-xs">
+        <span className="font-semibold text-primary">{tf('bulk.selected', language, { n: count })}</span>
+        <select
+            value=""
+            onChange={e => { if (e.target.value) onStatus(e.target.value as CustomerStatus); }}
+            className="bg-surface border border-border rounded-md px-1.5 py-1"
+            aria-label={t('bulk.setStatus', language)}
+        >
+            <option value="">{t('bulk.setStatus', language)}</option>
+            {Object.values(CustomerStatus).map(s => <option key={s} value={s}>{translateStatus(s, language)}</option>)}
+        </select>
+        <button onClick={onFollowUp} className="px-2 py-1 rounded-md bg-surface border border-border hover:bg-secondary">{t('bulk.followUp', language)}</button>
+        <button onClick={onSelectAll} className="px-2 py-1 rounded-md hover:bg-secondary">{t('bulk.selectAll', language)}</button>
+        <button onClick={onClear} className="px-2 py-1 rounded-md hover:bg-secondary">{t('bulk.clear', language)}</button>
+        <button onClick={onDelete} className="px-2 py-1 rounded-md text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10 ml-auto">{t('bulk.delete', language)}</button>
+    </div>
+);
 
 export default CustomerDashboard;
