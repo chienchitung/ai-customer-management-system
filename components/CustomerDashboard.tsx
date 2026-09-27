@@ -1,3 +1,6 @@
+import { DealAmount, useCurrency, CurrencyControls } from './Currency';
+import { convertMoney } from '../lib/currency';
+import { ArrowRight } from 'lucide-react';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Customer, CustomerStatus, Interaction, InteractionType, KeyContact, NextAction } from '../types';
 import { t, tf, translateStatus, translateInteractionType } from '../localization';
@@ -32,7 +35,7 @@ interface CustomerDashboardProps {
   onAddInteraction: (customerId: string, interaction: Omit<Interaction, 'id'>) => void;
   onUpdateCustomer: (customerId: string, updatedData: Partial<Omit<Customer, 'id'>>) => void;
   onMoveCustomer: (draggedId: string, newStatus: CustomerStatus, newIndex: number) => void;
-  onOpenAddCustomerModal: () => void;
+  onOpenAddCustomerModal: (status?: CustomerStatus) => void;
   onEditCustomer: (customer: Customer) => void;
   language: 'en' | 'zh';
   isAIAssistantOpen: boolean;
@@ -105,6 +108,7 @@ const ListView: React.FC<CustomerDashboardProps> = ({
     const [statusFilter, setStatusFilter] = useState('all');
     const [lastContactStart, setLastContactStart] = useState('');
     const [lastContactEnd, setLastContactEnd] = useState('');
+    const fx = useCurrency();
     const [dealValueMin, setDealValueMin] = useState('');
     const [dealValueMax, setDealValueMax] = useState('');
 
@@ -151,14 +155,14 @@ const ListView: React.FC<CustomerDashboardProps> = ({
                 const max = dealValueMax ? parseFloat(dealValueMax) : null;
                 if (min === null && max === null) return true;
                 
-                const value = customer.dealValue;
+                const value = customer.dealValue == null ? undefined : convertMoney(customer.dealValue, customer.dealCurrency || 'USD', fx.currency, fx.rates) ?? undefined;
                 if (value === undefined) return false;
                 
                 const minMatch = min === null || value >= min;
                 const maxMatch = max === null || value <= max;
                 return minMatch && maxMatch;
             });
-    }, [customers, searchQuery, statusFilter, lastContactStart, lastContactEnd, dealValueMin, dealValueMax]);
+    }, [customers, searchQuery, statusFilter, lastContactStart, lastContactEnd, dealValueMin, dealValueMax, fx.currency, fx.rates]);
 
 
     return (
@@ -213,7 +217,7 @@ const ListView: React.FC<CustomerDashboardProps> = ({
                             </div>
                         </div>
                         <div>
-                            <label className="text-xs font-medium text-text-secondary">{t('filters.dealValue', language)}</label>
+                            <label className="text-xs font-medium text-text-secondary">{t('filters.dealValue', language)} ({fx.currency})</label>
                              <div className="flex items-center gap-2 mt-1">
                                 <input type="number" placeholder={t('filters.min', language)} value={dealValueMin} onChange={e => setDealValueMin(e.target.value)} className="input" />
                                 <span className="text-text-secondary text-sm">-</span>
@@ -256,21 +260,21 @@ const ListView: React.FC<CustomerDashboardProps> = ({
                             selectedCustomer?.id === customer.id ? 'bg-secondary' : 'hover:bg-secondary/60'
                         }`}
                     >
-                        <span className="relative flex-shrink-0 w-8 h-8">
-                            <span className={`absolute inset-0 transition-opacity ${selectedIds.size ? 'opacity-0' : 'group-hover:opacity-0'}`}><Avatar name={customer.name} /></span>
+                        <label className="flex-shrink-0 flex items-center justify-center w-7 h-8 cursor-pointer" onClick={e => e.stopPropagation()}>
                             <input
                                 type="checkbox"
                                 aria-label={customer.name}
                                 checked={selectedIds.has(customer.id)}
                                 onClick={e => e.stopPropagation()}
                                 onChange={() => toggleSelected(customer.id)}
-                                className={`absolute inset-0 m-auto accent-primary w-4 h-4 transition-opacity ${selectedIds.size ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus:opacity-100'}`}
+                                className="accent-primary w-4 h-4 cursor-pointer"
                             />
-                        </span>
+                        </label>
+                        <Avatar name={customer.name} />
                         <div className="flex-grow min-w-0">
                             <div className="flex justify-between items-center gap-2">
                                 <h3 className="text-sm font-medium text-text-primary truncate">{customer.name}</h3>
-                                {customer.dealValue ? <span className="text-xs text-text-secondary tabular-nums">${Math.round(customer.dealValue / 1000)}k</span> : null}
+                                {customer.dealValue ? <span className="text-xs text-text-secondary tabular-nums"><DealAmount customer={customer} /></span> : null}
                             </div>
                             <div className="flex items-center gap-1.5 text-xs text-text-secondary min-w-0">
                                 <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${STATUS_DOT[customer.status]}`} title={translateStatus(customer.status, language)} />
@@ -323,14 +327,14 @@ const ListView: React.FC<CustomerDashboardProps> = ({
                             }}
                             language={language}
                         />
-                        {!isLargeScreen && (
+                        {!isLargeScreen && isAIAssistantOpen && (
                             <div className="h-[600px] card overflow-hidden">
                                 <AIAssistant customer={selectedCustomer} language={language} onAddInteraction={onAddInteraction} onSetNextAction={onSetNextAction} />
                             </div>
                         )}
                       </div>
                     </div>
-                    {isLargeScreen && (
+                    {isLargeScreen && isAIAssistantOpen && (
                     <aside
                         className={`flex-shrink-0 border-l border-border transition-all duration-200 ease-out ${isAIAssistantOpen ? 'w-80 2xl:w-96' : 'w-0 opacity-0 pointer-events-none border-l-0'}`}
                         aria-hidden={!isAIAssistantOpen}
@@ -344,7 +348,7 @@ const ListView: React.FC<CustomerDashboardProps> = ({
                 ) : (
                 <div className="hidden md:flex flex-col items-center justify-center h-full text-text-secondary">
                     <p className="text-sm">{t('selectCustomerPrompt', language)}</p>
-                    <button onClick={onOpenAddCustomerModal} className="btn btn-secondary mt-4"><PlusIcon className="w-4 h-4" />{t('addNewCustomer', language)}</button>
+                    <button onClick={() => onOpenAddCustomerModal()} className="btn btn-secondary mt-4"><PlusIcon className="w-4 h-4" />{t('addNewCustomer', language)}</button>
                 </div>
                 )}
             </div>
@@ -437,7 +441,7 @@ const CustomerDetails: React.FC<{
                 <p className="text-sm text-text-secondary mt-0.5 truncate">
                     {customer.company}
                     {customer.email && <> &middot; <a href={`mailto:${customer.email}`} className="hover:text-primary hover:underline">{customer.email}</a></>}
-                    {customer.dealValue ? <> &middot; <span className="text-text-primary font-medium">${customer.dealValue.toLocaleString()}</span></> : null}
+                    {customer.dealValue ? <> &middot; <span className="text-text-primary font-medium"><DealAmount customer={customer} equivalent /></span></> : null}
                 </p>
             </div>
             <div className="flex items-center gap-1">
@@ -464,8 +468,6 @@ const CustomerDetails: React.FC<{
             </div>
         </div>
 
-        <InteractionLogger customer={customer} onAddInteraction={onAddInteraction} onUpdateCustomer={onUpdateCustomer} onSetNextAction={onSetNextAction} language={language} />
-
         <Tabs tabs={tabs} active={tab} onChange={setTab} label={customer.name} />
 
         {tab === 'overview' && (
@@ -480,12 +482,13 @@ const CustomerDetails: React.FC<{
                     />
                     <KeyContactsCard contacts={customer.keyContacts} language={language} />
                 </div>
+                <InteractionLogger customer={customer} onAddInteraction={onAddInteraction} onUpdateCustomer={onUpdateCustomer} onSetNextAction={onSetNextAction} language={language} />
                 <CustomerProfileCard customer={customer} language={language} />
                 <div className="card">
                     <div className="flex items-center justify-between px-4 pt-3">
                         <h3 className="card-title">{t('shell.recent', language)}</h3>
                         {customer.interactions.length > 3 && (
-                            <button onClick={() => setTab('activity')} className="btn btn-ghost btn-sm">{t('shell.viewAll', language)} →</button>
+                            <button onClick={() => setTab('activity')} className="btn btn-ghost btn-sm">{t('shell.viewAll', language)} <ArrowRight className="w-4 h-4" /></button>
                         )}
                     </div>
                     <InteractionTable interactions={customer.interactions.slice(0, 3)} language={language} />
@@ -495,6 +498,7 @@ const CustomerDetails: React.FC<{
 
         {tab === 'activity' && (
             <div className="space-y-3">
+                <InteractionLogger customer={customer} onAddInteraction={onAddInteraction} onUpdateCustomer={onUpdateCustomer} onSetNextAction={onSetNextAction} language={language} />
                 <div className="flex flex-wrap items-center gap-2">
                     <select
                         value={typeFilter}
@@ -598,9 +602,9 @@ const NextActionCard: React.FC<{
                     setEditing(false);
                 }}
             >
-                <textarea autoFocus value={desc} onChange={e => setDesc(e.target.value)} rows={2} className="input" />
+                <textarea aria-label={t('modal.nextActionDesc', language)} autoFocus value={desc} onChange={e => setDesc(e.target.value)} rows={2} className="input" />
                 <div className="flex gap-2 items-center">
-                    <input type="date" value={due} onChange={e => setDue(e.target.value)} className="input w-auto" />
+                    <input aria-label={t('modal.nextActionDueDate', language)} type="date" value={due} onChange={e => setDue(e.target.value)} className="input w-auto" />
                     <button type="submit" className={`${smallBtn} btn-primary`}>{t('closeReason.save', language)}</button>
                     <button type="button" onClick={() => setEditing(false)} className={`${smallBtn} btn-secondary`}>{t('modal.cancel', language)}</button>
                 </div>
@@ -657,7 +661,8 @@ const CustomerProfileCard: React.FC<{customer: Customer, language: 'en' | 'zh'}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
             <div>
                 <h5 className="text-xs font-medium text-text-secondary mb-1">{t('dealValue', language)}</h5>
-                <p className="text-base font-semibold tabular-nums">{customer.dealValue ? `$${customer.dealValue.toLocaleString()}` : 'N/A'}</p>
+                <p className="text-base font-semibold tabular-nums"><DealAmount customer={customer} equivalent /></p>
+                <div className="mt-3"><CurrencyControls language={language} /></div>
             </div>
              <div>
                 <h5 className="text-xs font-medium text-text-secondary mb-1">{t('knownCompetitors', language)}</h5>

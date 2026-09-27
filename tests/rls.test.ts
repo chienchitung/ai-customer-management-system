@@ -37,9 +37,16 @@ beforeAll(async () => {
     await db.exec(readFileSync(resolve(__dirname, '../supabase/migrations', f), 'utf8'));
   }
   await db.exec('grant all on all tables in schema public to service_role; grant execute on all functions in schema public to service_role;');
+  await db.exec(readFileSync(resolve(__dirname, '../supabase/currency-schema.sql'), 'utf8'));
 });
 
 describe('customers RLS', () => {
+  it('stores supported deal currencies and rejects invalid ones', async () => {
+    await as(ALICE, `insert into customers (id, name, company, status, deal_currency) values ('fx1', 'FX', 'FX', 'Lead', 'TWD')`);
+    expect(await as(ALICE, "select deal_currency from customers where id = 'fx1'")).toEqual([{ deal_currency: 'TWD' }]);
+    await expect(as(ALICE, "update customers set deal_currency = 'BAD' where id = 'fx1'")).rejects.toThrow(/check constraint/);
+    await as(ALICE, "delete from customers where id = 'fx1'");
+  });
   it('owner_id defaults to the signed-in user and rows are private', async () => {
     await as(ALICE, `insert into customers (id, name, company, status, next_action) values ('c1', 'A', 'Acme', 'Lead', '{"description":"call","dueDate":"2026-10-01"}')`);
     await as(BOB, `insert into customers (id, name, company, status) values ('c1', 'B', 'Beta', 'Prospect')`);

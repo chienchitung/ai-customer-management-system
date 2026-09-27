@@ -5,11 +5,11 @@ import { translateStatus } from '../localization';
 // Small shared presentational primitives for the redesigned UI.
 
 export const STATUS_DOT: Record<CustomerStatus, string> = {
-  [CustomerStatus.LEAD]: 'bg-zinc-400',
-  [CustomerStatus.PROSPECT]: 'bg-sky-500',
-  [CustomerStatus.NEGOTIATION]: 'bg-amber-500',
-  [CustomerStatus.CLOSED_WON]: 'bg-emerald-500',
-  [CustomerStatus.CLOSED_LOST]: 'bg-rose-500',
+  [CustomerStatus.LEAD]: 'chart-neutral',
+  [CustomerStatus.PROSPECT]: 'chart-blue',
+  [CustomerStatus.NEGOTIATION]: 'chart-amber',
+  [CustomerStatus.CLOSED_WON]: 'chart-green',
+  [CustomerStatus.CLOSED_LOST]: 'chart-red',
 };
 
 export const StatusBadge: React.FC<{ status: CustomerStatus; language: 'en' | 'zh'; className?: string }> = ({ status, language, className = '' }) => (
@@ -21,12 +21,12 @@ export const StatusBadge: React.FC<{ status: CustomerStatus; language: 'en' | 'z
 
 // Muted, deterministic avatar colors (readable text in both themes).
 const AVATAR_TONES = [
-  'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-200',
+  'bg-primary/10 text-primary',
   'bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-200',
-  'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200',
-  'bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-200',
-  'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-200',
-  'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-200',
+  'bg-primary/15 text-primary',
+  'bg-secondary text-text-primary',
+  'bg-primary/10 text-primary',
+  'bg-secondary text-text-secondary',
 ];
 
 const initials = (name: string) => {

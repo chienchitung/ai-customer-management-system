@@ -3,33 +3,44 @@
 @tailwind utilities;
 
 /*
- * Design tokens — "clean productivity": neutral zinc grays, one indigo accent,
- * thin borders. All colors are RGB triplets so Tailwind can apply opacity.
- * Contrast (light): text-secondary on white 7.7:1, white on primary 6.3:1.
- * Contrast (dark): text-secondary on surface 6.9:1, on-primary on primary 7.3:1.
+ * Data Machi palette: forest green, mint, green-tinted neutrals and blue.
+ * Use the reference's green-dark for readable white-text buttons.
+ * RGB triplets preserve Tailwind opacity support.
  */
 :root {
-  --color-sidebar: 244 244 245;        /* zinc-100 */
-  --color-background: 255 255 255;
+  --color-sidebar: 240 246 243;
+  --color-background: 247 249 248;
   --color-surface: 255 255 255;
-  --color-secondary: 244 244 245;      /* zinc-100: subtle fills, hovers */
-  --color-border: 228 228 231;         /* zinc-200 */
-  --color-text-primary: 24 24 27;      /* zinc-900 */
-  --color-text-secondary: 82 82 91;    /* zinc-600 */
-  --color-primary: 79 70 229;          /* indigo-600 */
+  --color-secondary: 240 246 243;
+  --color-border: 220 230 224;
+  --color-text-primary: 11 31 23;
+  --color-text-secondary: 96 112 104;
+  --color-primary: 13 113 52;
+  --chart-green: 22 163 74;
+  --chart-blue: 59 130 246;
+  --chart-mint: 45 170 132;
+  --chart-neutral: 96 112 104;
+  --chart-amber: 180 121 34;
+  --chart-red: 190 73 73;
   --color-on-primary: 255 255 255;
   color-scheme: light;
 }
 html.dark {
-  --color-sidebar: 9 9 11;             /* zinc-950 */
-  --color-background: 17 17 19;
-  --color-surface: 24 24 27;           /* zinc-900 */
-  --color-secondary: 39 39 42;         /* zinc-800 */
-  --color-border: 39 39 42;            /* zinc-800 */
-  --color-text-primary: 244 244 245;   /* zinc-100 */
-  --color-text-secondary: 161 161 170; /* zinc-400 */
-  --color-primary: 129 140 248;        /* indigo-400 */
-  --color-on-primary: 24 24 27;
+  --color-sidebar: 7 21 15;
+  --color-background: 7 21 15;
+  --color-surface: 14 37 27;
+  --color-secondary: 23 59 43;
+  --color-border: 43 77 58;
+  --color-text-primary: 240 246 243;
+  --color-text-secondary: 164 184 173;
+  --color-primary: 167 243 208;
+  --color-on-primary: 11 31 23;
+  --chart-green: 74 222 128;
+  --chart-blue: 96 165 250;
+  --chart-mint: 110 231 183;
+  --chart-neutral: 164 184 173;
+  --chart-amber: 230 180 90;
+  --chart-red: 240 132 132;
   color-scheme: dark;
 }
 
@@ -39,23 +50,25 @@ html {
   -webkit-font-smoothing: antialiased;
 }
 
+body { margin: 0; background: rgb(var(--color-background)); }
+
 @layer components {
   .btn {
-    @apply inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-md text-sm font-medium whitespace-nowrap
-      transition-colors select-none disabled:opacity-50 disabled:pointer-events-none;
+    @apply inline-flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-lg text-sm font-semibold whitespace-nowrap
+      transition-all duration-200 select-none disabled:opacity-50 disabled:pointer-events-none;
   }
   .btn-sm { @apply h-7 px-2 text-xs; }
   .btn-icon { @apply w-8 px-0; }
-  .btn-primary { @apply bg-primary text-on-primary shadow-sm hover:bg-primary/90; }
-  .btn-secondary { @apply bg-surface text-text-primary border border-border shadow-sm hover:bg-secondary; }
+  .btn-primary { @apply bg-primary text-on-primary shadow-sm shadow-primary/20 hover:bg-primary/90 hover:-translate-y-px; }
+  .btn-secondary { @apply bg-surface text-text-primary border border-border shadow-sm hover:bg-secondary hover:border-text-secondary/30; }
   .btn-ghost { @apply text-text-secondary hover:bg-secondary hover:text-text-primary; }
   .btn-danger { @apply bg-rose-600 text-white shadow-sm hover:bg-rose-700; }
 
-  .card { @apply bg-surface border border-border rounded-lg; }
+  .card { @apply bg-surface border border-border rounded-xl shadow-sm shadow-slate-900/[0.03]; }
   .card-title { @apply text-sm font-semibold text-text-primary; }
 
   .input {
-    @apply w-full rounded-md border border-border bg-surface px-3 py-1.5 text-sm text-text-primary
+    @apply w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary
       placeholder:text-text-secondary/70 outline-none transition
       focus:border-primary focus:ring-2 focus:ring-primary/20;
   }
@@ -63,6 +76,29 @@ html {
   .kbd { @apply inline-flex items-center px-1.5 h-5 rounded border border-border bg-surface text-[11px] font-medium text-text-secondary; }
 
   .chip { @apply inline-flex items-center gap-1.5 rounded-md border border-border px-1.5 py-0.5 text-xs font-medium text-text-primary whitespace-nowrap; }
+}
+
+.app-sidebar {
+  background: rgb(var(--color-sidebar));
+}
+.app-sidebar [role='status'] { color: rgb(var(--color-text-secondary)); }
+.chart-green { background-color: rgb(var(--chart-green)); }
+.chart-blue { background-color: rgb(var(--chart-blue)); }
+.chart-mint { background-color: rgb(var(--chart-mint)); }
+.chart-neutral { background-color: rgb(var(--chart-neutral)); }
+.chart-amber { background-color: rgb(var(--chart-amber)); }
+.chart-red { background-color: rgb(var(--chart-red)); }
+
+.metric-card { position: relative; overflow: hidden; }
+.metric-card::after {
+  content: '';
+  position: absolute;
+  width: 96px;
+  height: 96px;
+  right: -44px;
+  top: -44px;
+  border-radius: 999px;
+  background: rgb(var(--color-primary) / .08);
 }
 
 @keyframes fadeIn {

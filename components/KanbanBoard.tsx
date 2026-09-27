@@ -1,3 +1,5 @@
+import { DealAmount, useCurrency } from './Currency';
+import { convertMoney, formatMoney } from '../lib/currency';
 import React, { useState } from 'react';
 import { Customer, CustomerStatus } from '../types';
 // FIX: Import the 't' function for localization.
@@ -12,7 +14,7 @@ interface KanbanBoardProps {
     onMoveCustomer: (draggedId: string, newStatus: CustomerStatus, newIndex: number) => void;
     language: 'en' | 'zh';
     onEditCustomer: (customer: Customer) => void;
-    onOpenAddCustomerModal: () => void;
+    onOpenAddCustomerModal: (status?: CustomerStatus) => void;
     selectedCustomerId: string | null;
     onSelectCustomer: (id: string | null) => void;
 }
@@ -30,6 +32,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
     selectedCustomerId,
     onSelectCustomer
 }) => {
+    const fx = useCurrency();
     const [draggedItem, setDraggedItem] = useState<Customer | null>(null);
     const [dropIndicator, setDropIndicator] = useState<{ status: CustomerStatus, index: number } | null>(null);
 
@@ -87,10 +90,10 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
                                     {translateStatus(status, language)}
                                 </h3>
                                 <span className="text-sm font-medium text-text-secondary">{customersInColumn.length}</span>
-                                <span className="text-xs text-text-secondary">· ${customersInColumn.reduce((sum, c) => sum + (c.dealValue ?? 0), 0).toLocaleString()}</span>
+                                <span className="text-xs text-text-secondary">· {customersInColumn.some(c => c.dealValue != null && convertMoney(c.dealValue, c.dealCurrency || 'USD', fx.currency, fx.rates) == null) ? '—' : formatMoney(customersInColumn.reduce((sum, c) => sum + (convertMoney(c.dealValue ?? 0, c.dealCurrency || 'USD', fx.currency, fx.rates) ?? 0), 0), fx.currency)}</span>
                             </div>
                             <div className="flex items-center">
-                                <button onClick={onOpenAddCustomerModal} aria-label={t('addNewCustomer', language)} title={t('addNewCustomer', language)} className="w-6 h-6 flex items-center justify-center text-text-secondary hover:bg-black/5 dark:hover:bg-white/10 rounded-md transition-colors">
+                                <button onClick={() => onOpenAddCustomerModal(status)} aria-label={`${t('addNewCustomer', language)}: ${translateStatus(status, language)}`} title={t('addNewCustomer', language)} className="w-8 h-8 flex items-center justify-center text-text-secondary hover:bg-black/5 dark:hover:bg-white/10 rounded-md transition-colors">
                                     <PlusIcon className="w-4 h-4" />
                                 </button>
                             </div>
@@ -135,7 +138,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
                                             <h4 className="font-medium text-sm text-text-primary truncate">{customer.name}</h4>
                                             <p className="text-xs text-text-secondary truncate">{customer.company}</p>
                                             <div className="flex items-center gap-2 mt-1 text-xs">
-                                                {customer.dealValue ? <span className="font-medium tabular-nums">${customer.dealValue.toLocaleString()}</span> : null}
+                                                {customer.dealValue ? <span className="font-medium tabular-nums"><DealAmount customer={customer} /></span> : null}
                                                 {customer.nextAction?.dueDate && (
                                                     <span className={customer.nextAction.dueDate < today ? 'text-rose-600 dark:text-rose-400 font-medium' : customer.nextAction.dueDate === today ? 'text-amber-700 dark:text-amber-400 font-medium' : 'text-text-secondary'}>
                                                         {formatDate(customer.nextAction.dueDate, language)}
@@ -166,7 +169,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
                             )}
                         </div>
                         <div className="px-2 pt-1 pb-2">
-                             <button onClick={onOpenAddCustomerModal} className="btn btn-ghost btn-sm w-full justify-start">
+                             <button onClick={() => onOpenAddCustomerModal(status)} className="btn btn-ghost btn-sm w-full justify-start">
                                 <PlusIcon className="w-4 h-4" />
                                 {t('addNewCustomer', language)}
                             </button>

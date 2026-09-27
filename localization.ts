@@ -46,7 +46,7 @@ const translations = {
         analyzing: 'Analyzing...',
         logInteraction: 'Log Interaction',
         welcome: {
-            title: 'Welcome to AI Customer Management System',
+            title: 'Welcome to Pulse CRM',
             message: 'Get started by adding your first customer. This dashboard will help you manage relationships, track progress, and get AI-powered insights to close deals faster.',
             cta: 'Add Your First Customer',
         },
@@ -255,7 +255,7 @@ const translations = {
         analyzing: '分析中...',
         logInteraction: '記錄互動',
         welcome: {
-            title: '歡迎使用 AI 客戶管理系統',
+            title: '歡迎使用 Pulse CRM',
             message: '開始新增您的第一位客戶。此儀表板將幫助您管理客戶關係、追蹤進度，並獲得 AI 驅動的洞察以更快地完成交易。',
             cta: '新增您的第一位客戶',
         },

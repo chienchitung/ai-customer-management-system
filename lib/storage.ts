@@ -1,3 +1,4 @@
+import { CURRENCIES } from './currency';
 import { Customer, CustomerStatus, InteractionType } from '../types';
 
 // Local persistence. Every read/write is guarded because storage can be
@@ -12,6 +13,7 @@ export interface Prefs {
   viewMode: 'list' | 'kanban';
   mainView: 'today' | 'management' | 'dashboard';
   isAIAssistantOpen: boolean;
+  sidebarCollapsed: boolean;
 }
 
 const defaultLanguage = (): Prefs['language'] =>
@@ -26,7 +28,8 @@ export const loadPrefs = (): Prefs => {
     theme: defaultTheme(),
     viewMode: 'list',
     mainView: 'today',
-    isAIAssistantOpen: true,
+    isAIAssistantOpen: false,
+    sidebarCollapsed: false,
   };
   try {
     const raw = localStorage.getItem(PREFS_KEY);
@@ -67,6 +70,8 @@ export const saveCustomers = (customers: Customer[]): boolean => {
 
 const isCustomer = (c: any): c is Customer =>
   c && typeof c === 'object' &&
+  (c.dealCurrency === undefined || CURRENCIES.includes(c.dealCurrency)) &&
+  (c.dealValue === undefined || (Number.isFinite(c.dealValue) && c.dealValue >= 0)) &&
   typeof c.id === 'string' && typeof c.name === 'string' && typeof c.company === 'string' &&
   Object.values(CustomerStatus).includes(c.status) && Array.isArray(c.interactions);
 
@@ -96,9 +101,9 @@ const csvCell = (v: unknown) => {
 };
 
 export const exportCSV = (customers: Customer[]) => {
-  const header = ['Name', 'Company', 'Email', 'Status', 'Deal Value', 'Last Contact', 'Next Action', 'Due Date', 'Key Contacts', 'Pain Points', 'Competitors', 'Closed Reason', 'Interactions'];
+  const header = ['Name', 'Company', 'Email', 'Status', 'Deal Value', 'Currency', 'Last Contact', 'Next Action', 'Due Date', 'Key Contacts', 'Pain Points', 'Competitors', 'Closed Reason', 'Interactions'];
   const rows = customers.map(c => [
-    c.name, c.company, c.email, c.status, c.dealValue ?? '', c.lastContact,
+    c.name, c.company, c.email, c.status, c.dealValue ?? '', c.dealCurrency || 'USD', c.lastContact,
     c.nextAction?.description ?? '', c.nextAction?.dueDate ?? '',
     (c.keyContacts ?? []).map(k => `${k.name} (${k.title})`).join('; '),
     (c.customerPainPoints ?? []).join('; '), (c.competitors ?? []).join('; '),
