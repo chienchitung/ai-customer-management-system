@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 96" fill="none" role="img" aria-label="Pulse CRM">
+  <title>Pulse CRM</title>
+  <desc>Flat P monogram with a negative-space pulse waveform, reconstructed from the generated logo.</desc>
+  <g fill="#0D7134">
+    <path d="M9 4H39C59 4 75 16 75 36H51C49 36 48 37 47 39L43 46L34 17C33 14 30 14 29 17L21 34C20 36 18 37 16 37H4V9C4 6 6 4 9 4Z"/>
+    <path d="M4 43H20C23 43 25 42 26 39L30 30L38 56C39 60 42 60 44 57L51 44C52 43 53 42 55 42H75C72 58 59 69 39 69H28V82C28 88 24 92 18 92H9C6 92 4 90 4 87V43Z"/>
+  </g>
+</svg>

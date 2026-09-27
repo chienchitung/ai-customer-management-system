@@ -5,24 +5,19 @@ import { t } from '../localization';
 import { Avatar, StatusBadge } from './ui';
 import { SearchIcon, PlusIcon, SparklesIcon } from './icons';
 
+import { CircleCheck, Users, ChartNoAxesColumn, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 type Language = 'en' | 'zh';
 export type MainView = 'today' | 'management' | 'dashboard';
 
-const NAV_ICONS: Record<MainView, React.ReactNode> = {
-  today: <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />,
-  management: <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128H3.375a4.125 4.125 0 0 1 7.533-2.493M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />,
-  dashboard: <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" />,
-};
-
-export const NavIcon: React.FC<{ view: MainView; className?: string }> = ({ view, className = 'w-[18px] h-[18px]' }) => (
-  <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth={1.6} aria-hidden="true">{NAV_ICONS[view]}</svg>
-);
+export const NavIcon: React.FC<{ view: MainView; className?: string }> = ({ view, className = 'w-[18px] h-[18px]' }) => { const Icon = { today: CircleCheck, management: Users, dashboard: ChartNoAxesColumn }[view]; return <Icon className={className} aria-hidden="true" />; };
 
 export const isMac = () => typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
 
 // ---------- Sidebar (desktop) ----------
 
 export const Sidebar: React.FC<{
+  collapsed: boolean;
+  onToggle: () => void;
   view: MainView;
   onChange: (v: MainView) => void;
   todayCount: number;
@@ -32,38 +27,38 @@ export const Sidebar: React.FC<{
   onNewCustomer: () => void;
   onCapture: () => void;
   footer: React.ReactNode;
-}> = ({ view, onChange, todayCount, customerCount, language, onOpenPalette, onNewCustomer, onCapture, footer }) => {
+}> = ({ collapsed, onToggle, view, onChange, todayCount, customerCount, language, onOpenPalette, onNewCustomer, onCapture, footer }) => {
   const item = (v: MainView, key: string, count?: number, highlight?: boolean) => (
     <button
       key={v}
       onClick={() => onChange(v)}
+      aria-label={t(`shell.titles.${v}`, language)}
       aria-current={view === v ? 'page' : undefined}
       title={`${t(`shell.titles.${v}`, language)} (${key})`}
-      className={`w-full flex items-center gap-2.5 h-8 px-2 rounded-md text-sm transition-colors ${
-        view === v ? 'bg-surface text-text-primary font-medium shadow-sm border border-border' : 'text-text-secondary hover:bg-secondary hover:text-text-primary border border-transparent'
+      className={`w-full flex items-center gap-3 h-10 px-3 rounded-lg text-sm transition-all ${
+        view === v ? 'bg-surface text-text-primary font-semibold shadow-sm border border-border' : 'text-text-secondary hover:bg-secondary hover:text-text-primary border border-transparent'
       }`}
     >
       <NavIcon view={v} />
-      <span className="flex-grow text-left">{t(`shell.titles.${v}`, language)}</span>
-      {count !== undefined && count > 0 && (
+        {!collapsed && <span className="flex-grow text-left">{t(`shell.titles.${v}`, language)}</span>}
+      {!collapsed && count !== undefined && count > 0 && (
         <span className={`text-xs tabular-nums ${highlight ? 'min-w-[20px] h-5 px-1.5 rounded-full bg-rose-500 text-white font-semibold flex items-center justify-center' : 'text-text-secondary'}`}>{count}</span>
       )}
     </button>
   );
 
   return (
-    <aside className="hidden md:flex w-60 flex-shrink-0 flex-col bg-sidebar px-3 py-3 gap-4" aria-label={t('settings.menu', language)}>
-      <div className="flex items-center gap-2 px-1 h-8">
-        <span className="w-6 h-6 rounded-md bg-primary text-on-primary flex items-center justify-center" aria-hidden="true">
-          <SparklesIcon className="w-4 h-4" />
-        </span>
-        <span className="font-semibold text-sm tracking-tight">{language === 'zh' ? 'AI 客戶管理' : 'AI CRM'}</span>
+    <aside className={`app-sidebar hidden md:flex ${collapsed ? 'w-[76px]' : 'w-64'} transition-[width] duration-200 flex-shrink-0 flex-col px-3 py-3 gap-4 border-r border-border`} aria-label={t('settings.menu', language)}>
+      <div className="flex items-center gap-3 p-2 text-left">
+        <img src="/pulse-logo.svg" alt="" className="w-10 h-10 flex-shrink-0" aria-hidden="true" />
+        <span className={collapsed ? 'hidden' : 'min-w-0 flex-grow'}><span className="block font-bold text-[15px] tracking-tight text-text-primary">Pulse CRM</span><span className="block text-[10px] uppercase tracking-[.14em] text-text-secondary truncate">Sales workspace</span></span>
       </div>
 
-      <button onClick={onOpenPalette} className="w-full flex items-center gap-2 h-8 px-2 rounded-md border border-border bg-surface text-sm text-text-secondary hover:border-text-secondary/40 transition-colors shadow-sm">
+      <button onClick={onToggle} aria-expanded={!collapsed} aria-label={language === 'zh' ? (collapsed ? '展開側欄' : '收合側欄') : (collapsed ? 'Expand sidebar' : 'Collapse sidebar')} title={language === 'zh' ? (collapsed ? '展開側欄' : '收合側欄') : 'Toggle sidebar'} className="btn btn-ghost w-full">{collapsed ? <PanelLeftOpen className="w-5 h-5" /> : <><PanelLeftClose className="w-5 h-5" /><span>{language === 'zh' ? '收合側欄' : 'Collapse sidebar'}</span></>}</button>
+      <button aria-label={t('shell.search', language)} title={t('shell.search', language)} onClick={onOpenPalette} className="w-full flex items-center gap-2 h-9 px-3 rounded-lg border border-border bg-surface text-sm text-text-secondary hover:border-text-secondary/40 transition-colors shadow-sm">
         <SearchIcon className="w-4 h-4" />
-        <span className="flex-grow text-left">{t('shell.search', language)}</span>
-        <kbd className="kbd">{isMac() ? '⌘K' : 'Ctrl K'}</kbd>
+        {!collapsed && <span className="flex-grow text-left">{t('shell.search', language)}</span>}
+        <kbd className={collapsed ? 'hidden' : 'kbd'}>{isMac() ? '⌘K' : 'Ctrl K'}</kbd>
       </button>
 
       <nav className="space-y-0.5" aria-label="Main">
@@ -72,13 +67,13 @@ export const Sidebar: React.FC<{
         {item('dashboard', '3')}
       </nav>
 
-      <div className="space-y-0.5">
-        <p className="px-2 pb-1 text-xs font-medium text-text-secondary">{t('shell.quick', language)}</p>
-        <button onClick={onNewCustomer} className="w-full flex items-center gap-2.5 h-8 px-2 rounded-md text-sm text-text-secondary hover:bg-secondary hover:text-text-primary transition-colors" aria-label={t('addNewCustomer', language)}>
-          <PlusIcon className="w-[18px] h-[18px]" /><span className="flex-grow text-left">{t('shell.newCustomer', language)}</span><kbd className="kbd">N</kbd>
+      <div className="space-y-1 border-t border-border pt-4">
+        <p className={`${collapsed ? 'hidden' : ''} px-3 pb-1 text-[10px] font-semibold uppercase tracking-[.16em] text-text-secondary`}>{t('shell.quick', language)}</p>
+        <button onClick={onNewCustomer} className="w-full flex items-center gap-2.5 h-9 px-3 rounded-lg text-sm text-text-secondary hover:bg-secondary hover:text-text-primary transition-colors" aria-label={t('addNewCustomer', language)}>
+          <PlusIcon className="w-[18px] h-[18px]" />{!collapsed && <><span className="flex-grow text-left">{t('shell.newCustomer', language)}</span><kbd className="kbd">N</kbd></>}
         </button>
-        <button onClick={onCapture} className="w-full flex items-center gap-2.5 h-8 px-2 rounded-md text-sm text-text-secondary hover:bg-secondary hover:text-text-primary transition-colors" aria-label={t('capture.button', language)}>
-          <SparklesIcon className="w-[18px] h-[18px]" /><span className="flex-grow text-left">{t('capture.button', language)}</span>
+        <button onClick={onCapture} className="w-full flex items-center gap-2.5 h-9 px-3 rounded-lg text-sm text-text-secondary hover:bg-secondary hover:text-text-primary transition-colors" aria-label={t('capture.button', language)}>
+          <SparklesIcon className="w-[18px] h-[18px]" />{!collapsed && <span className="flex-grow text-left">{t('capture.button', language)}</span>}
         </button>
       </div>
 

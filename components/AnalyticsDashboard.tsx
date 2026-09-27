@@ -1,3 +1,5 @@
+import { CurrencyControls, useCurrency } from './Currency';
+import { convertMoney, formatMoney } from '../lib/currency';
 import React, { useMemo, useState } from 'react';
 import { Customer, CustomerStatus, InteractionType } from '../types';
 import { StatusBadge, STATUS_DOT } from './ui';
@@ -14,20 +16,20 @@ interface AnalyticsDashboardProps {
     language: 'en' | 'zh';
 }
 
-const money = (n: number) => `$${Math.round(n).toLocaleString()}`;
+
 const sum = (counts: Record<InteractionType, number>) => Object.values(InteractionType).reduce((a, k) => a + counts[k], 0);
 const pct = (r: number | null) => (r === null ? '—' : `${Math.round(r * 100)}%`);
 
 const StatCard: React.FC<{ title: string; value: string | number; description?: string }> = ({ title, value, description }) => (
-    <div className="card px-4 py-3">
+    <div className="card metric-card px-5 py-4">
         <h3 className="text-xs font-medium text-text-secondary">{title}</h3>
-        <p className="text-xl font-semibold mt-1 text-text-primary tabular-nums">{value}</p>
+        <p className="text-xl xl:text-2xl break-words font-bold tracking-tight mt-1 text-text-primary tabular-nums">{value}</p>
         {description && <p className="text-xs text-text-secondary mt-2">{description}</p>}
     </div>
 );
 
 const Panel: React.FC<{ title: string; children: React.ReactNode; action?: React.ReactNode }> = ({ title, children, action }) => (
-    <div className="card p-4">
+    <div className="card p-5">
         <div className="flex items-center justify-between mb-4 gap-2 min-h-7">
             <h3 className="card-title">{title}</h3>
             {action}
@@ -38,13 +40,17 @@ const Panel: React.FC<{ title: string; children: React.ReactNode; action?: React
 
 // Interaction type colors (validated for both themes).
 const TYPE_COLORS: Record<InteractionType, string> = {
-    [InteractionType.EMAIL]: 'bg-indigo-500',
-    [InteractionType.CALL]: 'bg-amber-500',
-    [InteractionType.MEETING]: 'bg-emerald-500',
-    [InteractionType.NOTE]: 'bg-slate-400',
+    [InteractionType.EMAIL]: 'chart-green',
+    [InteractionType.CALL]: 'chart-blue',
+    [InteractionType.MEETING]: 'chart-mint',
+    [InteractionType.NOTE]: 'chart-neutral',
 };
 
-const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ customers, language }) => {
+const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ customers: originals, language }) => {
+    const fx = useCurrency();
+    const missing = originals.some(c => c.dealValue != null && convertMoney(c.dealValue, c.dealCurrency || 'USD', fx.currency, fx.rates) == null);
+    const customers = useMemo(() => originals.map(c => ({ ...c, dealValue: c.dealValue == null ? undefined : convertMoney(c.dealValue, c.dealCurrency || 'USD', fx.currency, fx.rates) ?? undefined })), [originals, fx.currency, fx.rates]);
+    const money = (n: number) => missing ? '—' : formatMoney(n, fx.currency);
     const m = useMemo(() => computeMetrics(customers, todayISO()), [customers]);
     const funnel = useMemo(() => Object.values(CustomerStatus).map(status => ({
         status,
@@ -59,7 +65,7 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ customers, lang
     const analyze = async () => {
         setAnalyzing(true);
         try {
-            setInsight(await analyzeClosedDeals(customers, language));
+            setInsight(await analyzeClosedDeals(originals, language));
         } catch (e) {
             setInsight(aiErrorMessage(e, language));
         } finally {
@@ -69,15 +75,17 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ customers, lang
 
     return (
         <div className="h-full overflow-y-auto pb-8 -mx-4 md:-mx-6 px-4 md:px-6">
-          <div className="max-w-6xl mx-auto">
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="max-w-6xl mx-auto"><div className="mb-4"><CurrencyControls language={language} />{missing && <p role="alert" className="text-sm text-rose-600">{language === 'zh' ? '部分幣別缺少匯率，暫不顯示金額總計。' : 'Some rates are unavailable. Monetary totals are hidden.'}</p>}</div>
+            <details className="mb-4 rounded-lg border border-border bg-surface p-3 text-xs text-text-secondary"><summary className="cursor-pointer font-medium">{language === 'zh' ? '統計範圍與計算方式' : 'Reporting scope and methodology · USD'}</summary><p className="mt-2 leading-relaxed">{language === 'zh' ? '管線為目前未結案商機；成交率與成交金額涵蓋所有已結案資料，活動趨勢為最近 8 週。金額依選定幣別，以最新參考匯率換算（包括已成交金額，非固定歷史帳務）。加權預測 = 商機金額 × 預設機率（銷售線索 10%、潛在客戶 30%、談判中 60%），是估算而非保證收入。' : 'Pipeline is a current snapshot of open deals. Win rate and won value cover all closed records; activity trends cover the last 8 weeks. Amounts use the selected currency and latest reference rates, including closed deals (not fixed historical accounting). Forecast uses deal value × default probability (Lead 10%, Prospect 30%, Negotiation 60%); it is an estimate, not guaranteed revenue.'}</p></details>
+            <div className="mb-6"><p className="text-xs font-semibold uppercase tracking-[.14em] text-primary mb-1">{language === 'zh' ? '業務洞察' : 'Revenue intelligence'}</p><p className="text-sm text-text-secondary">{language === 'zh' ? '掌握管線健康度、轉換效率與團隊活動。' : 'Monitor pipeline health, conversion efficiency, and team activity.'}</p></div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatCard title={t('pipelineValue', language)} value={money(m.pipelineValue)} description={t('pipelineValueDesc', language)} />
                 <StatCard title={t('dash.weightedForecast', language)} value={money(m.weightedForecast)} description={t('dash.weightedForecastDesc', language)} />
                 <StatCard title={t('dash.winRate', language)} value={pct(m.winRate)} description={t('dash.winRateDesc', language)} />
                 <StatCard title={t('dash.wonValue', language)} value={money(m.wonValue)} description={t('dash.wonValueDesc', language)} />
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mt-3">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
                 <Panel title={t('salesFunnel', language)}>
                     <div className="space-y-3">
                         {funnel.map(({ status, count, value }) => (

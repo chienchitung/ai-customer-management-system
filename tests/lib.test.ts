@@ -100,6 +100,7 @@ describe('sync', () => {
   it('round-trips through the database row shape', () => {
     const c = base({ id: 'r', dealValue: 5, nextAction: { description: 'x', dueDate: TODAY }, keyContacts: [{ id: 'k', name: 'K', title: 'T' }],
       customerPainPoints: ['p'], competitors: ['c'], closedReason: 'r', statusHistory: [], createdAt: TODAY });
-    expect(fromRow(toRow(c))).toEqual(c);
+    expect(fromRow(toRow(c))).toEqual({ ...c, dealCurrency: 'USD' });
+    expect(fromRow(toRow({ ...c, dealCurrency: 'TWD' })).dealCurrency).toBe('TWD');
   });
 });

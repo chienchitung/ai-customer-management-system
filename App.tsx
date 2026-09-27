@@ -8,7 +8,8 @@ import { CloseReasonModal, CompleteActionModal, SmartCaptureModal, ShortcutsModa
 import { useToast } from './components/Toast';
 import { ConfirmProvider, useConfirm } from './components/ConfirmDialog';
 import AuthScreen from './components/AuthScreen';
-import { BottomNav, SettingsMenu, SyncBadge } from './components/AppChrome';
+import { BottomNav, SettingsMenu, SyncBadge, SettingsSection } from './components/AppChrome';
+import SettingsPage from './components/SettingsPage';
 import { CommandPalette, Sidebar } from './components/Shell';
 import { ViewListIcon, ViewGridIcon, PlusIcon, ChatbotIcon, SparklesIcon, SearchIcon } from './components/icons';
 import { useAuth } from './hooks/useAuth';
@@ -22,6 +23,8 @@ import { buildWorkList, withStatus } from './lib/insights';
 import { createDemoCustomers } from './data/demo';
 import { Prefs, loadPrefs, savePrefs, exportJSON, exportCSV, downloadFile, parseCustomers } from './lib/storage';
 
+import { CurrencyProvider } from './components/Currency';
+import { Moon, Languages, Download, CircleHelp } from 'lucide-react';
 export { generateId };
 
 
@@ -72,7 +75,7 @@ const App: React.FC = () => {
 
   return (
     <ConfirmProvider language={language}>
-      <GmailProvider value={gmail}>{content}</GmailProvider>
+      <GmailProvider value={gmail}><CurrencyProvider>{content}</CurrencyProvider></GmailProvider>
     </ConfirmProvider>
   );
 };
@@ -106,6 +109,7 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
   const [completeId, setCompleteId] = useState<string | null>(null);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
+  const [settingsSection, setSettingsSection] = useState<SettingsSection | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -190,9 +194,10 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
 
   // ---------- Customer modal ----------
 
-  const openAddModal = useCallback(() => {
+  const openAddModal = useCallback((status: CustomerStatus = CustomerStatus.LEAD) => {
     setCustomerToEdit(null);
-    setPrefill(null);
+    setPrefill({ status });
+    setSettingsSection(null);
     pendingInteraction.current = undefined;
     setIsCustomerModalOpen(true);
   }, []);
@@ -221,7 +226,7 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
         status: CustomerStatus.LEAD,
         lastContact: today,
         createdAt: today,
-        statusHistory: [{ status: CustomerStatus.LEAD, date: today }],
+        statusHistory: [{ status: data.status ?? CustomerStatus.LEAD, date: today }],
         name: data.name!,
         company: data.company!,
         email: data.email ?? '',
@@ -283,6 +288,7 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
   // ---------- Navigation & shortcuts ----------
 
   const openCustomer = useCallback((id: string) => {
+    setSettingsSection(null);
     setSelectedCustomerId(id);
     updatePrefs({ mainView: 'management', viewMode: 'list' });
   }, [updatePrefs]);
@@ -345,16 +351,15 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
   const paletteActions = [
     { id: 'a-new', label: t('shell.newCustomer', language), hint: 'N', icon: <PlusIcon className="w-4 h-4" />, run: openAddModal },
     { id: 'a-capture', label: t('capture.button', language), icon: <SparklesIcon className="w-4 h-4" />, run: () => setIsCaptureOpen(true) },
-    { id: 'a-theme', label: t('shell.toggleTheme', language), icon: <span className="w-4 text-center">◐</span>, run: toggleTheme },
-    { id: 'a-lang', label: t('shell.toggleLanguage', language), icon: <span className="w-4 text-center text-xs">文</span>, run: toggleLanguage },
-    ...dataItems.filter(d => !d.danger).map((d, i) => ({ id: `a-data-${i}`, label: d.label, icon: <span className="w-4 text-center">↧</span>, run: d.onClick })),
-    { id: 'a-help', label: t('shortcuts.title', language), hint: '?', icon: <span className="w-4 text-center">?</span>, run: () => setIsShortcutsOpen(true) },
+    { id: 'a-theme', label: t('shell.toggleTheme', language), icon: <Moon className="w-4 h-4" />, run: toggleTheme },
+    { id: 'a-lang', label: t('shell.toggleLanguage', language), icon: <Languages className="w-4 h-4" />, run: toggleLanguage },
+    ...dataItems.filter(d => !d.danger).map((d, i) => ({ id: `a-data-${i}`, label: d.label, icon: <Download className="w-4 h-4" />, run: d.onClick })),
+    { id: 'a-help', label: t('shortcuts.title', language), hint: '?', icon: <CircleHelp className="w-4 h-4" />, run: () => setIsShortcutsOpen(true) },
   ];
 
   const settingsProps = {
-    language, theme, userEmail, dataItems,
-    onToggleLanguage: toggleLanguage,
-    onToggleTheme: toggleTheme,
+    language, userEmail,
+    onOpenSettings: setSettingsSection,
     onShowShortcuts: () => setIsShortcutsOpen(true),
     onSignOut,
   };
@@ -377,10 +382,12 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
   );
 
   return (
-    <div className="h-screen bg-sidebar font-sans flex overflow-hidden text-text-primary">
+    <div className="h-screen bg-background font-sans flex overflow-hidden text-text-primary">
       <Sidebar
+        collapsed={prefs.sidebarCollapsed}
+        onToggle={() => updatePrefs({ sidebarCollapsed: !prefs.sidebarCollapsed })}
         view={mainView}
-        onChange={v => updatePrefs({ mainView: v })}
+        onChange={v => { setSettingsSection(null); updatePrefs({ mainView: v }); }}
         todayCount={todayCount}
         customerCount={customers.length}
         language={language}
@@ -388,35 +395,35 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
         onNewCustomer={openAddModal}
         onCapture={() => setIsCaptureOpen(true)}
         footer={
-          <div className="space-y-2">
-            <div className="px-2"><SyncBadge status={store.status} onRetry={store.retry} language={language} /></div>
-            <SettingsMenu {...settingsProps} variant="account" />
+          <div className="space-y-2 border-t border-border pt-3">
+            <div className={prefs.sidebarCollapsed ? 'hidden' : 'px-2 flex items-center justify-between'}><span className="text-[10px] font-semibold uppercase tracking-[.14em] text-text-secondary">{language === 'zh' ? '資料狀態' : 'Data status'}</span><SyncBadge status={store.status} onRetry={store.retry} language={language} /></div>
+            <SettingsMenu {...settingsProps} variant={prefs.sidebarCollapsed ? 'icon' : 'account'} />
           </div>
         }
       />
 
-      <div className="flex-grow min-w-0 flex flex-col bg-background md:my-2 md:mr-2 md:rounded-xl md:border md:border-border md:shadow-sm overflow-hidden">
-        <header className="h-14 flex-shrink-0 border-b border-border px-4 md:px-6 flex items-center gap-3">
-          <h1 className="text-base font-semibold truncate flex-grow">{t(`shell.titles.${mainView}`, language)}</h1>
-          <span className="md:hidden"><SyncBadge status={store.status} onRetry={store.retry} language={language} /></span>
-          {mainView === 'management' && viewToggle}
-          {mainView === 'management' && (
+      <div className="flex-grow min-w-0 flex flex-col bg-background overflow-hidden">
+        <header className="h-16 flex-shrink-0 border-b border-border bg-surface/95 backdrop-blur-xl px-4 md:px-6 flex items-center gap-3">
+          <div className="flex-grow min-w-0"><p className="text-xs text-text-secondary">Pulse CRM <span className="mx-1.5">/</span> {settingsSection ? (language === 'zh' ? '設定' : 'Settings') : t(`shell.titles.${mainView}`, language)}</p><h1 className="text-lg font-semibold tracking-tight truncate">{settingsSection ? (language === 'zh' ? '設定' : 'Settings') : t(`shell.titles.${mainView}`, language)}</h1></div>
+          <span className="hidden sm:inline md:hidden"><SyncBadge status={store.status} onRetry={store.retry} language={language} /></span>
+          {mainView === 'management' && !settingsSection && viewToggle}
+          {mainView === 'management' && !settingsSection && (
             <button
               onClick={() => updatePrefs({ isAIAssistantOpen: !isAIAssistantOpen })}
               aria-pressed={isAIAssistantOpen}
               title={t('buttons.toggleAI', language)}
-              className={`btn hidden lg:inline-flex ${isAIAssistantOpen ? 'btn-secondary text-primary' : 'btn-ghost'}`}
+              className={`btn ${isAIAssistantOpen ? 'btn-secondary text-primary' : 'btn-ghost'}`}
             >
-              <ChatbotIcon className="w-4 h-4" />{t('aiAssistant', language)}
+              <ChatbotIcon className="w-4 h-4" /><span className="hidden lg:inline">{t('aiAssistant', language)}</span>
             </button>
           )}
           <button onClick={() => setIsPaletteOpen(true)} className="btn btn-ghost btn-icon md:hidden" aria-label={t('shell.search', language)}>
             <SearchIcon className="w-5 h-5" />
           </button>
-          <button onClick={() => setIsCaptureOpen(true)} className="btn btn-ghost btn-icon md:hidden" aria-label={t('capture.button', language)}>
+          <button onClick={() => setIsCaptureOpen(true)} className="btn btn-ghost btn-icon hidden sm:inline-flex md:hidden" aria-label={t('capture.button', language)}>
             <SparklesIcon className="w-5 h-5" />
           </button>
-          <button onClick={openAddModal} className="btn btn-primary" aria-label={t('addNewCustomer', language)} title={`${t('addNewCustomer', language)} (N)`}>
+          <button onClick={() => openAddModal()} className="btn btn-primary" aria-label={t('addNewCustomer', language)} title={`${t('addNewCustomer', language)} (N)`}>
             <PlusIcon className="w-4 h-4" /><span className="hidden sm:inline">{t('shell.newCustomer', language)}</span>
           </button>
           <span className="md:hidden"><SettingsMenu {...settingsProps} /></span>
@@ -432,9 +439,9 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
           </div>
         )}
 
-        <main className={`flex-grow min-h-0 ${mainView === 'management' && customers.length > 0 ? 'pb-16 md:pb-0' : 'p-4 md:p-6 pb-20 md:pb-6'}`}>
+        <main className={`flex-grow min-h-0 ${mainView === 'management' && !settingsSection && customers.length > 0 ? 'pb-16 md:pb-0' : 'p-4 md:p-6 pb-20 md:pb-6'}`}>
           <div key={mainView} className="animate-fade-in h-full">
-            {!store.loaded ? (
+            {settingsSection ? <SettingsPage section={settingsSection} onSection={setSettingsSection} language={language} theme={theme} userEmail={userEmail} onLanguage={language => updatePrefs({ language })} onTheme={theme => updatePrefs({ theme })} dataItems={dataItems} onBack={() => setSettingsSection(null)} /> : !store.loaded ? (
               <div className="space-y-3 max-w-5xl mx-auto" aria-busy="true">
                 {[0, 1, 2, 3].map(i => <div key={i} className="h-16 rounded-lg bg-secondary animate-pulse" />)}
               </div>
@@ -477,7 +484,7 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
         </main>
       </div>
 
-      <BottomNav view={mainView} onChange={v => updatePrefs({ mainView: v })} todayCount={todayCount} language={language} />
+      <BottomNav view={mainView} onChange={v => { setSettingsSection(null); updatePrefs({ mainView: v }); }} todayCount={todayCount} language={language} />
 
       {isPaletteOpen && <CommandPalette
         isOpen
@@ -485,7 +492,7 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
         customers={customers}
         language={language}
         onOpenCustomer={openCustomer}
-        onNavigate={v => updatePrefs({ mainView: v })}
+        onNavigate={v => { setSettingsSection(null); updatePrefs({ mainView: v }); }}
         actions={paletteActions}
       />}
 

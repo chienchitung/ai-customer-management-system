@@ -1,3 +1,5 @@
+import { DealAmount, useCurrency } from './Currency';
+import { convertMoney, formatMoney } from '../lib/currency';
 import React, { useMemo, useState } from 'react';
 import { Customer, NextAction } from '../types';
 import { t, tf } from '../localization';
@@ -20,12 +22,14 @@ interface TodayViewProps {
   onSetNextAction: (id: string, action: NextAction) => void;
 }
 
-const money = (n: number) => `$${Math.round(n).toLocaleString()}`;
+
 
 const TodayView: React.FC<TodayViewProps> = ({ customers, language, onOpenCustomer, onComplete, onSnooze, onSetNextAction }) => {
   const today = todayISO();
   const items = useMemo(() => buildWorkList(customers, today), [customers, today]);
-  const metrics = useMemo(() => computeMetrics(customers, today), [customers, today]);
+  const fx = useCurrency();
+  const missing = customers.some(c => c.dealValue != null && convertMoney(c.dealValue, c.dealCurrency || 'USD', fx.currency, fx.rates) == null);
+  const metrics = useMemo(() => computeMetrics(customers.map(c => ({ ...c, dealValue: c.dealValue == null ? undefined : convertMoney(c.dealValue, c.dealCurrency || 'USD', fx.currency, fx.rates) ?? undefined })), today), [customers, today, fx.currency, fx.rates]);
   const [hints, setHints] = useState<Record<string, string>>({});
   const [loadingHints, setLoadingHints] = useState(false);
 
@@ -66,19 +70,19 @@ const TodayView: React.FC<TodayViewProps> = ({ customers, language, onOpenCustom
   };
 
   const stat = (label: string, value: string | number, dot?: string) => (
-    <div className="card px-4 py-3">
+    <div className="card metric-card px-5 py-4">
       <p className="text-xs text-text-secondary flex items-center gap-1.5">{dot && <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />}{label}</p>
-      <p className="text-xl font-semibold mt-1 tabular-nums">{value}</p>
+      <p className="text-2xl font-bold tracking-tight mt-1 tabular-nums">{value}</p>
     </div>
   );
 
   return (
     <div className="h-full overflow-y-auto -mx-4 md:-mx-6 px-4 md:px-6">
-      <div className="max-w-4xl mx-auto space-y-6 pb-8">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-text-secondary">
+      <div className="max-w-6xl mx-auto space-y-7 pb-8">
+        <div className="flex flex-wrap items-end justify-between gap-3 pt-1">
+          <div><p className="text-xs font-semibold uppercase tracking-[.14em] text-primary mb-1">{language === 'zh' ? '每日焦點' : 'Daily focus'}</p><p className="text-sm text-text-secondary">
             <span className="font-medium text-text-primary">{formatDate(today, language)}</span> · {t('todayView.subtitle', language)}
-          </p>
+          </p></div>
           {items.length > 0 && (
             <button onClick={loadHints} disabled={loadingHints} className="btn btn-secondary">
               <SparklesIcon className="w-4 h-4 text-primary" />
@@ -87,11 +91,11 @@ const TodayView: React.FC<TodayViewProps> = ({ customers, language, onOpenCustom
           )}
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {stat(t('todayView.statOverdue', language), count('overdue'), DOT.overdue)}
           {stat(t('todayView.statToday', language), count('dueToday'), DOT.dueToday)}
           {stat(t('todayView.statStale', language), count('stale'), DOT.stale)}
-          {stat(t('todayView.statForecast', language), money(metrics.weightedForecast))}
+          {stat(t('todayView.statForecast', language), missing ? '—' : formatMoney(metrics.weightedForecast, fx.currency))}
         </div>
 
         {items.length === 0 ? (
@@ -109,7 +113,7 @@ const TodayView: React.FC<TodayViewProps> = ({ customers, language, onOpenCustom
                 {t(`todayView.${kind}`, language)}
                 <span className="tabular-nums">{group.length}</span>
               </h2>
-              <ul className="card divide-y divide-border overflow-hidden">
+              <ul className="card divide-y divide-border overflow-hidden shadow-sm">
                 {group.map(item => {
                   const c = item.customer;
                   const hint = hints[c.id] ?? getCachedProactiveSummary(c, language);
@@ -137,7 +141,7 @@ const TodayView: React.FC<TodayViewProps> = ({ customers, language, onOpenCustom
                         </span>
                       </button>
                       <div className="flex items-center gap-2 flex-shrink-0 pl-11 sm:pl-0">
-                        {c.dealValue ? <span className="text-sm font-medium tabular-nums w-20 text-right hidden md:block">{money(c.dealValue)}</span> : <span className="w-20 hidden md:block" />}
+                        {c.dealValue ? <span className="text-sm font-medium tabular-nums min-w-[150px] flex-shrink-0 text-right hidden md:block"><DealAmount customer={c} /></span> : <span className="w-20 hidden md:block" />}
                         {c.nextAction ? (
                           <>
                             <button onClick={() => onSnooze(c.id, 1)} className="btn btn-ghost btn-sm">{t('todayView.snooze', language)}</button>

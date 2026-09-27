@@ -10,6 +10,7 @@ export interface CustomerRow {
   email: string;
   status: CustomerStatus;
   deal_value: number | null;
+  deal_currency?: string;
   last_contact: string | null;
   next_action: Customer['nextAction'] | null;
   key_contacts: NonNullable<Customer['keyContacts']>;
@@ -28,6 +29,7 @@ export const toRow = (c: Customer): CustomerRow => ({
   email: c.email ?? '',
   status: c.status,
   deal_value: typeof c.dealValue === 'number' ? c.dealValue : null,
+  deal_currency: c.dealCurrency || 'USD',
   last_contact: c.lastContact || null,
   next_action: c.nextAction ?? null,
   key_contacts: c.keyContacts ?? [],
@@ -46,6 +48,7 @@ export const fromRow = (r: CustomerRow): Customer => ({
   email: r.email ?? '',
   status: r.status,
   dealValue: r.deal_value === null || r.deal_value === undefined ? undefined : Number(r.deal_value),
+  dealCurrency: r.deal_currency || 'USD',
   lastContact: r.last_contact ?? '',
   nextAction: r.next_action ?? undefined,
   keyContacts: r.key_contacts ?? [],
@@ -57,7 +60,7 @@ export const fromRow = (r: CustomerRow): Customer => ({
   createdAt: r.created_at,
 });
 
-const COLUMNS = 'id,name,company,email,status,deal_value,last_contact,next_action,key_contacts,pain_points,competitors,closed_reason,status_history,interactions,created_at';
+const COLUMNS = 'id,name,company,email,status,deal_value,deal_currency,last_contact,next_action,key_contacts,pain_points,competitors,closed_reason,status_history,interactions,created_at';
 
 export const fetchCustomers = async (): Promise<Customer[]> => {
   const { data, error } = await supabase!.from('customers').select(COLUMNS).order('updated_at', { ascending: false });

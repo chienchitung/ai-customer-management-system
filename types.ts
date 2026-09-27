@@ -49,6 +49,7 @@ export interface Customer {
   interactions: Interaction[];
   // Enhanced Customer Intelligence Fields
   dealValue?: number;
+  dealCurrency?: string; // ISO currency; legacy records default to USD
   keyContacts?: KeyContact[];
   customerPainPoints?: string[];
   competitors?: string[];
