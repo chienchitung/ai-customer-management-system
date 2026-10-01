@@ -70,9 +70,9 @@ const TodayView: React.FC<TodayViewProps> = ({ customers, language, onOpenCustom
   };
 
   const stat = (label: string, value: string | number, dot?: string) => (
-    <div className="card metric-card px-5 py-4">
+    <div className="card metric-card px-4 sm:px-5 py-4 min-w-0">
       <p className="text-xs text-text-secondary flex items-center gap-1.5">{dot && <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />}{label}</p>
-      <p className="text-2xl font-bold tracking-tight mt-1 tabular-nums">{value}</p>
+      <p className="text-base sm:text-xl xl:text-2xl font-bold tracking-tight mt-1 tabular-nums">{value}</p>
     </div>
   );
 
@@ -118,7 +118,7 @@ const TodayView: React.FC<TodayViewProps> = ({ customers, language, onOpenCustom
                   const c = item.customer;
                   const hint = hints[c.id] ?? getCachedProactiveSummary(c, language);
                   return (
-                    <li key={c.id} className="group flex flex-col sm:flex-row sm:items-center gap-3 px-4 py-3 hover:bg-secondary/50 transition-colors">
+                    <li key={c.id} className="group flex flex-col lg:flex-row lg:items-center gap-3 px-4 py-3 hover:bg-secondary/50 transition-colors">
                       <button onClick={() => onOpenCustomer(c.id)} className="flex items-start gap-3 flex-grow min-w-0 text-left">
                         <Avatar name={c.name} />
                         <span className="min-w-0 flex-grow">
@@ -140,8 +140,10 @@ const TodayView: React.FC<TodayViewProps> = ({ customers, language, onOpenCustom
                           )}
                         </span>
                       </button>
-                      <div className="flex items-center gap-2 flex-shrink-0 pl-11 sm:pl-0">
-                        {c.dealValue ? <span className="text-sm font-medium tabular-nums min-w-[150px] flex-shrink-0 text-right hidden md:block"><DealAmount customer={c} /></span> : <span className="w-20 hidden md:block" />}
+                      <div className="flex items-center gap-3 flex-shrink-0 pl-11 lg:pl-0">
+                        {c.dealValue ? <span className="text-sm font-medium tabular-nums flex-shrink-0 hidden md:block lg:min-w-[150px] lg:text-right"><DealAmount customer={c} /></span> : <span className="hidden lg:block lg:min-w-[150px]" />}
+                        {/* Fixed width keeps the amount column aligned whichever actions a row has. */}
+                        <div className="flex items-center justify-end gap-1.5 lg:w-[12rem]">
                         {c.nextAction ? (
                           <>
                             <button onClick={() => onSnooze(c.id, 1)} className="btn btn-ghost btn-sm">{t('todayView.snooze', language)}</button>
@@ -156,6 +158,7 @@ const TodayView: React.FC<TodayViewProps> = ({ customers, language, onOpenCustom
                           </button>
                         )}
                         <button onClick={() => onOpenCustomer(c.id)} className="btn btn-ghost btn-sm">{t('todayView.open', language)}</button>
+                        </div>
                       </div>
                     </li>
                   );

@@ -58,7 +58,7 @@ body { margin: 0; background: rgb(var(--color-background)); }
       transition-all duration-200 select-none disabled:opacity-50 disabled:pointer-events-none;
   }
   .btn-sm { @apply h-7 px-2 text-xs; }
-  .btn-icon { @apply w-8 px-0; }
+  .btn-icon { @apply w-9 px-0; }
   .btn-primary { @apply bg-primary text-on-primary shadow-sm shadow-primary/20 hover:bg-primary/90 hover:-translate-y-px; }
   .btn-secondary { @apply bg-surface text-text-primary border border-border shadow-sm hover:bg-secondary hover:border-text-secondary/30; }
   .btn-ghost { @apply text-text-secondary hover:bg-secondary hover:text-text-primary; }

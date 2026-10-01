@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { CURRENCIES } from '../lib/currency';
-import { DealAmount, CurrencyControls } from './Currency';
+import { DealAmount } from './Currency';
 import { ChevronRight } from 'lucide-react';
 import Modal from './Modal';
 import { t, translateStatus } from '../localization';
@@ -174,9 +174,14 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onClose, on
                   <label htmlFor="customer-email" className="block text-xs font-medium text-text-secondary mb-1">{t('modal.emailAddress', language)}</label>
                   <input type="email" id="customer-email" name="email" value={formData.email} onChange={handleInputChange} className="input" />
                 </div>
-                 <div>
-                  <label htmlFor="customer-dealValue" className="block text-xs font-medium text-text-secondary mb-1">{language === 'zh' ? '交易金額（原幣）' : 'Deal amount (original currency)'}</label>
-                  <input type="number" min="0" step="any" id="customer-dealValue" name="dealValue" placeholder="0.00" value={formData.dealValue} onChange={handleInputChange} className="input" />
+                <div>
+                  <label htmlFor="customer-dealValue" className="block text-xs font-medium text-text-secondary mb-1">{language === 'zh' ? '交易金額' : 'Deal amount'}</label>
+                  {/* Amount and its original currency sit together; the converted value is a hint below. */}
+                  <div className="flex gap-2">
+                    <input type="number" min="0" step="any" id="customer-dealValue" name="dealValue" placeholder="0.00" value={formData.dealValue} onChange={handleInputChange} className="input flex-1 min-w-0" />
+                    <select id="deal-currency" name="dealCurrency" aria-label={language === 'zh' ? '交易原幣' : 'Original currency'} className="input w-24 flex-shrink-0" value={formData.dealCurrency} onChange={handleInputChange}>{CURRENCIES.map(c => <option key={c}>{c}</option>)}</select>
+                  </div>
+                  {formData.dealValue !== '' && <p className="mt-1 text-xs text-text-secondary"><DealAmount equivalent customer={{ dealValue: Number(formData.dealValue), dealCurrency: formData.dealCurrency } as Customer} /></p>}
                 </div>
             </div>
 
@@ -194,7 +199,6 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onClose, on
             </div>
         </div>
 
-        <div className="card p-4 space-y-3"><label htmlFor="deal-currency" className="block text-sm font-medium">{language === 'zh' ? '交易原幣' : 'Original currency'}</label><select id="deal-currency" name="dealCurrency" className="input" value={formData.dealCurrency} onChange={handleInputChange}>{CURRENCIES.map(c => <option key={c}>{c}</option>)}</select><CurrencyControls language={language} /><DealAmount equivalent customer={{ dealValue: Number(formData.dealValue), dealCurrency: formData.dealCurrency } as Customer} /></div>
         {/* Optional details, collapsed unless they already contain data */}
         <details open={hasDetails} className="group rounded-lg border border-border">
         <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium text-text-primary list-none flex items-center gap-2 hover:bg-secondary/50 rounded-lg">

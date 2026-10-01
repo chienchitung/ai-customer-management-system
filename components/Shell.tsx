@@ -17,8 +17,10 @@ export const isMac = () => typeof navigator !== 'undefined' && /Mac|iPhone|iPad/
 
 export const Sidebar: React.FC<{
   collapsed: boolean;
-  onToggle: () => void;
-  view: MainView;
+  /** Omitted when the sidebar is forced into the rail (narrow screens). */
+  onToggle?: () => void;
+  /** Undefined when a page outside the main nav (e.g. Settings) is shown. */
+  view?: MainView;
   onChange: (v: MainView) => void;
   todayCount: number;
   customerCount: number;
@@ -35,7 +37,7 @@ export const Sidebar: React.FC<{
       aria-label={t(`shell.titles.${v}`, language)}
       aria-current={view === v ? 'page' : undefined}
       title={`${t(`shell.titles.${v}`, language)} (${key})`}
-      className={`w-full flex items-center gap-3 h-10 px-3 rounded-lg text-sm transition-all ${
+      className={`w-full flex items-center gap-3 h-9 px-3 rounded-lg text-sm transition-all ${
         view === v ? 'bg-surface text-text-primary font-semibold shadow-sm border border-border' : 'text-text-secondary hover:bg-secondary hover:text-text-primary border border-transparent'
       }`}
     >
@@ -54,7 +56,7 @@ export const Sidebar: React.FC<{
         <span className={collapsed ? 'hidden' : 'min-w-0 flex-grow'}><span className="block font-bold text-[15px] tracking-tight text-text-primary">Pulse CRM</span><span className="block text-[10px] uppercase tracking-[.14em] text-text-secondary truncate">Sales workspace</span></span>
       </div>
 
-      <button onClick={onToggle} aria-expanded={!collapsed} aria-label={language === 'zh' ? (collapsed ? '展開側欄' : '收合側欄') : (collapsed ? 'Expand sidebar' : 'Collapse sidebar')} title={language === 'zh' ? (collapsed ? '展開側欄' : '收合側欄') : 'Toggle sidebar'} className="btn btn-ghost w-full">{collapsed ? <PanelLeftOpen className="w-5 h-5" /> : <><PanelLeftClose className="w-5 h-5" /><span>{language === 'zh' ? '收合側欄' : 'Collapse sidebar'}</span></>}</button>
+      {onToggle && <button onClick={onToggle} aria-expanded={!collapsed} aria-label={language === 'zh' ? (collapsed ? '展開側欄' : '收合側欄') : (collapsed ? 'Expand sidebar' : 'Collapse sidebar')} title={language === 'zh' ? (collapsed ? '展開側欄' : '收合側欄') : 'Toggle sidebar'} className={`w-full flex items-center gap-3 h-9 px-3 rounded-lg text-sm text-text-secondary hover:bg-secondary hover:text-text-primary transition-colors ${collapsed ? 'justify-center' : ''}`}>{collapsed ? <PanelLeftOpen className="w-[18px] h-[18px]" /> : <><PanelLeftClose className="w-[18px] h-[18px]" /><span className="flex-grow text-left">{language === 'zh' ? '收合側欄' : 'Collapse sidebar'}</span></>}</button>}
       <button aria-label={t('shell.search', language)} title={t('shell.search', language)} onClick={onOpenPalette} className="w-full flex items-center gap-2 h-9 px-3 rounded-lg border border-border bg-surface text-sm text-text-secondary hover:border-text-secondary/40 transition-colors shadow-sm">
         <SearchIcon className="w-4 h-4" />
         {!collapsed && <span className="flex-grow text-left">{t('shell.search', language)}</span>}

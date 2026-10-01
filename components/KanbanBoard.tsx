@@ -79,18 +79,21 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
                 return (
                     <div
                         key={status}
-                        className={`w-72 flex-shrink-0 rounded-lg flex flex-col border border-border ${columnStyles[status].bg}`}
+                        className={`flex-1 min-w-[220px] max-w-[22rem] rounded-lg flex flex-col border border-border ${columnStyles[status].bg}`}
                         onDragOver={(e) => { e.preventDefault(); }}
                         onDrop={handleDrop}
                     >
-                        <div className="p-3 sticky top-0 z-10 flex justify-between items-center">
-                            <div className="flex items-center gap-2">
-                                <span className={`w-2 h-2 rounded-full ${columnStyles[status].dot}`}></span>
-                                <h3 className="font-medium text-text-primary text-sm">
-                                    {translateStatus(status, language)}
-                                </h3>
-                                <span className="text-sm font-medium text-text-secondary">{customersInColumn.length}</span>
-                                <span className="text-xs text-text-secondary">· {customersInColumn.some(c => c.dealValue != null && convertMoney(c.dealValue, c.dealCurrency || 'USD', fx.currency, fx.rates) == null) ? '—' : formatMoney(customersInColumn.reduce((sum, c) => sum + (convertMoney(c.dealValue ?? 0, c.dealCurrency || 'USD', fx.currency, fx.rates) ?? 0), 0), fx.currency)}</span>
+                        <div className="p-3 sticky top-0 z-10 flex justify-between items-start gap-2">
+                            {/* Title and count on one line, column total below, so narrow columns never wrap mid-word. */}
+                            <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${columnStyles[status].dot}`}></span>
+                                    <h3 className="font-medium text-text-primary text-sm whitespace-nowrap truncate">
+                                        {translateStatus(status, language)}
+                                    </h3>
+                                    <span className="text-sm font-medium text-text-secondary tabular-nums">{customersInColumn.length}</span>
+                                </div>
+                                <p className="mt-0.5 pl-4 text-xs text-text-secondary tabular-nums truncate">{customersInColumn.some(c => c.dealValue != null && convertMoney(c.dealValue, c.dealCurrency || 'USD', fx.currency, fx.rates) == null) ? '—' : formatMoney(customersInColumn.reduce((sum, c) => sum + (convertMoney(c.dealValue ?? 0, c.dealCurrency || 'USD', fx.currency, fx.rates) ?? 0), 0), fx.currency)}</p>
                             </div>
                             <div className="flex items-center">
                                 <button onClick={() => onOpenAddCustomerModal(status)} aria-label={`${t('addNewCustomer', language)}: ${translateStatus(status, language)}`} title={t('addNewCustomer', language)} className="w-8 h-8 flex items-center justify-center text-text-secondary hover:bg-black/5 dark:hover:bg-white/10 rounded-md transition-colors">
@@ -137,10 +140,10 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
                                         <div className="flex-grow min-w-0">
                                             <h4 className="font-medium text-sm text-text-primary truncate">{customer.name}</h4>
                                             <p className="text-xs text-text-secondary truncate">{customer.company}</p>
-                                            <div className="flex items-center gap-2 mt-1 text-xs">
+                                            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1 text-xs">
                                                 {customer.dealValue ? <span className="font-medium tabular-nums"><DealAmount customer={customer} /></span> : null}
                                                 {customer.nextAction?.dueDate && (
-                                                    <span className={customer.nextAction.dueDate < today ? 'text-rose-600 dark:text-rose-400 font-medium' : customer.nextAction.dueDate === today ? 'text-amber-700 dark:text-amber-400 font-medium' : 'text-text-secondary'}>
+                                                    <span className={'whitespace-nowrap ' + (customer.nextAction.dueDate < today ? 'text-rose-600 dark:text-rose-400 font-medium' : customer.nextAction.dueDate === today ? 'text-amber-700 dark:text-amber-400 font-medium' : 'text-text-secondary')}>
                                                         {formatDate(customer.nextAction.dueDate, language)}
                                                     </span>
                                                 )}

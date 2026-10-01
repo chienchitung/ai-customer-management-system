@@ -13,6 +13,7 @@ import SettingsPage from './components/SettingsPage';
 import { CommandPalette, Sidebar } from './components/Shell';
 import { ViewListIcon, ViewGridIcon, PlusIcon, ChatbotIcon, SparklesIcon, SearchIcon } from './components/icons';
 import { useAuth } from './hooks/useAuth';
+import { useMediaQuery } from './hooks/useMediaQuery';
 import { useCustomerStore } from './hooks/useCustomerStore';
 import { GmailProvider, useGmailState } from './hooks/useGmail';
 import { isCloud } from './lib/supabase';
@@ -95,6 +96,9 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
   const toast = useToast();
   const confirm = useConfirm();
   const { language, theme, viewMode, mainView, isAIAssistantOpen } = prefs;
+  // Below 1280px the expanded sidebar would squeeze the content, so it shows as an icon rail.
+  const isWideScreen = useMediaQuery('(min-width: 1280px)');
+  const sidebarCollapsed = prefs.sidebarCollapsed || !isWideScreen;
   const store = useCustomerStore(userId, () => createDemoCustomers(language));
   const { customers, setCustomers } = store;
   const [legacy, setLegacy] = useState<Customer[]>(() => (isCloud ? readLegacyCustomers() : []));
@@ -128,7 +132,7 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
 
   // Select the first customer on desktop when entering management with nothing selected.
   useEffect(() => {
-    if (mainView === 'management' && !selectedCustomerId && customers.length && window.innerWidth >= 768) {
+    if (mainView === 'management' && !selectedCustomerId && customers.length && window.innerWidth >= 1024) {
       setSelectedCustomerId(customers[0].id);
     }
   }, [mainView, store.loaded]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -332,11 +336,11 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
       const focus = (id: string) => setTimeout(() => document.getElementById(id)?.focus(), 50);
       switch (e.key) {
         case 'n': case 'N': e.preventDefault(); openAddModal(); break;
-        case '/': e.preventDefault(); updatePrefs({ mainView: 'management', viewMode: 'list' }); focus('customer-search'); break;
-        case 'l': case 'L': if (selectedCustomerId) { e.preventDefault(); updatePrefs({ mainView: 'management', viewMode: 'list' }); focus('interaction-log-input'); } break;
-        case '1': updatePrefs({ mainView: 'today' }); break;
-        case '2': updatePrefs({ mainView: 'management' }); break;
-        case '3': updatePrefs({ mainView: 'dashboard' }); break;
+        case '/': e.preventDefault(); setSettingsSection(null); updatePrefs({ mainView: 'management', viewMode: 'list' }); focus('customer-search'); break;
+        case 'l': case 'L': if (selectedCustomerId) { e.preventDefault(); setSettingsSection(null); updatePrefs({ mainView: 'management', viewMode: 'list' }); focus('interaction-log-input'); } break;
+        case '1': setSettingsSection(null); updatePrefs({ mainView: 'today' }); break;
+        case '2': setSettingsSection(null); updatePrefs({ mainView: 'management' }); break;
+        case '3': setSettingsSection(null); updatePrefs({ mainView: 'dashboard' }); break;
         case '?': setIsShortcutsOpen(true); break;
       }
     };
@@ -365,7 +369,7 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
   };
 
   const viewToggle = (
-    <div className="hidden sm:flex items-center p-0.5 rounded-md border border-border bg-secondary/60">
+    <div className="hidden sm:flex items-center h-9 p-[3px] gap-0.5 rounded-lg border border-border bg-secondary/60">
       {([['list', 'buttons.listView', <ViewListIcon key="l" className="w-4 h-4" />], ['kanban', 'buttons.kanbanView', <ViewGridIcon key="k" className="w-4 h-4" />]] as const).map(([mode, label, icon]) => (
         <button
           key={mode}
@@ -373,7 +377,7 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
           aria-pressed={viewMode === mode}
           title={t(label, language)}
           aria-label={t(label, language)}
-          className={`h-7 w-8 flex items-center justify-center rounded transition-colors ${viewMode === mode ? 'bg-surface text-text-primary shadow-sm' : 'text-text-secondary hover:text-text-primary'}`}
+          className={`h-7 w-8 flex items-center justify-center rounded-md transition-colors ${viewMode === mode ? 'bg-surface text-text-primary shadow-sm' : 'text-text-secondary hover:text-text-primary'}`}
         >
           {icon}
         </button>
@@ -384,9 +388,9 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
   return (
     <div className="h-screen bg-background font-sans flex overflow-hidden text-text-primary">
       <Sidebar
-        collapsed={prefs.sidebarCollapsed}
-        onToggle={() => updatePrefs({ sidebarCollapsed: !prefs.sidebarCollapsed })}
-        view={mainView}
+        collapsed={sidebarCollapsed}
+        onToggle={isWideScreen ? () => updatePrefs({ sidebarCollapsed: !prefs.sidebarCollapsed }) : undefined}
+        view={settingsSection ? undefined : mainView}
         onChange={v => { setSettingsSection(null); updatePrefs({ mainView: v }); }}
         todayCount={todayCount}
         customerCount={customers.length}
@@ -396,8 +400,8 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
         onCapture={() => setIsCaptureOpen(true)}
         footer={
           <div className="space-y-2 border-t border-border pt-3">
-            <div className={prefs.sidebarCollapsed ? 'hidden' : 'px-2 flex items-center justify-between'}><span className="text-[10px] font-semibold uppercase tracking-[.14em] text-text-secondary">{language === 'zh' ? '資料狀態' : 'Data status'}</span><SyncBadge status={store.status} onRetry={store.retry} language={language} /></div>
-            <SettingsMenu {...settingsProps} variant={prefs.sidebarCollapsed ? 'icon' : 'account'} />
+            <div className={sidebarCollapsed ? 'hidden' : 'px-2 flex items-center justify-between'}><span className="text-[10px] font-semibold uppercase tracking-[.14em] text-text-secondary">{language === 'zh' ? '資料狀態' : 'Data status'}</span><SyncBadge status={store.status} onRetry={store.retry} language={language} /></div>
+            <SettingsMenu {...settingsProps} variant={sidebarCollapsed ? 'icon' : 'account'} />
           </div>
         }
       />
@@ -484,7 +488,7 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
         </main>
       </div>
 
-      <BottomNav view={mainView} onChange={v => { setSettingsSection(null); updatePrefs({ mainView: v }); }} todayCount={todayCount} language={language} />
+      <BottomNav view={settingsSection ? undefined : mainView} onChange={v => { setSettingsSection(null); updatePrefs({ mainView: v }); }} todayCount={todayCount} language={language} />
 
       {isPaletteOpen && <CommandPalette
         isOpen

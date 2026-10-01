@@ -56,7 +56,8 @@ export const SettingsMenu: React.FC<{
 // ---------- Mobile bottom navigation ----------
 
 export const BottomNav: React.FC<{
-  view: 'today' | 'management' | 'dashboard';
+  /** Undefined while Settings is open (no main tab is active). */
+  view?: 'today' | 'management' | 'dashboard';
   onChange: (v: 'today' | 'management' | 'dashboard') => void;
   todayCount: number;
   language: Language;
