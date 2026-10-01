@@ -22,7 +22,6 @@ export default function SettingsPage({ section, onSection, language, theme, user
   const sections: [SettingsSection, string][] = [['account', zh ? '帳號資訊' : 'Account'], ['preferences', zh ? '外觀與語言' : 'Appearance & language'], ['integrations', zh ? '整合服務' : 'Integrations'], ['data', zh ? '資料管理' : 'Data management']];
   return <div className="h-full overflow-y-auto pb-8 max-w-5xl mx-auto">
     <button onClick={onBack} className="btn btn-ghost mb-4"><ArrowLeft className="w-4 h-4" />{zh ? '返回工作區' : 'Back to workspace'}</button>
-    <h2 className="text-2xl font-semibold mb-2">{zh ? '設定' : 'Settings'}</h2>
     <p className="text-sm text-text-secondary mb-6">{zh ? '管理你的使用偏好、整合與客戶資料。' : 'Manage your preferences, integrations, and customer data.'}</p>
     <div className="flex flex-col md:flex-row gap-6">
       <nav aria-label={zh ? '設定分類' : 'Settings sections'} className="flex md:flex-col overflow-x-auto gap-1 md:w-44 flex-shrink-0">

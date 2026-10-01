@@ -21,9 +21,9 @@ const sum = (counts: Record<InteractionType, number>) => Object.values(Interacti
 const pct = (r: number | null) => (r === null ? '—' : `${Math.round(r * 100)}%`);
 
 const StatCard: React.FC<{ title: string; value: string | number; description?: string }> = ({ title, value, description }) => (
-    <div className="card metric-card px-5 py-4">
+    <div className="card metric-card px-4 sm:px-5 py-4 min-w-0">
         <h3 className="text-xs font-medium text-text-secondary">{title}</h3>
-        <p className="text-xl xl:text-2xl break-words font-bold tracking-tight mt-1 text-text-primary tabular-nums">{value}</p>
+        <p className="text-base sm:text-xl xl:text-2xl font-bold tracking-tight mt-1 text-text-primary tabular-nums">{value}</p>
         {description && <p className="text-xs text-text-secondary mt-2">{description}</p>}
     </div>
 );
@@ -76,7 +76,7 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ customers: orig
     return (
         <div className="h-full overflow-y-auto pb-8 -mx-4 md:-mx-6 px-4 md:px-6">
           <div className="max-w-6xl mx-auto"><div className="mb-4"><CurrencyControls language={language} />{missing && <p role="alert" className="text-sm text-rose-600">{language === 'zh' ? '部分幣別缺少匯率，暫不顯示金額總計。' : 'Some rates are unavailable. Monetary totals are hidden.'}</p>}</div>
-            <details className="mb-4 rounded-lg border border-border bg-surface p-3 text-xs text-text-secondary"><summary className="cursor-pointer font-medium">{language === 'zh' ? '統計範圍與計算方式' : 'Reporting scope and methodology · USD'}</summary><p className="mt-2 leading-relaxed">{language === 'zh' ? '管線為目前未結案商機；成交率與成交金額涵蓋所有已結案資料，活動趨勢為最近 8 週。金額依選定幣別，以最新參考匯率換算（包括已成交金額，非固定歷史帳務）。加權預測 = 商機金額 × 預設機率（銷售線索 10%、潛在客戶 30%、談判中 60%），是估算而非保證收入。' : 'Pipeline is a current snapshot of open deals. Win rate and won value cover all closed records; activity trends cover the last 8 weeks. Amounts use the selected currency and latest reference rates, including closed deals (not fixed historical accounting). Forecast uses deal value × default probability (Lead 10%, Prospect 30%, Negotiation 60%); it is an estimate, not guaranteed revenue.'}</p></details>
+            <details className="group mb-4 rounded-lg border border-border bg-surface text-xs text-text-secondary"><summary className="cursor-pointer select-none list-none flex items-center gap-2 px-4 py-3 text-sm font-medium text-text-primary hover:bg-secondary/50 rounded-lg"><span className="transition-transform group-open:rotate-90 text-text-secondary" aria-hidden="true">▸</span>{language === 'zh' ? '統計範圍與計算方式' : 'Reporting scope and methodology'}</summary><p className="px-4 pb-3 leading-relaxed">{language === 'zh' ? '管線為目前未結案商機；成交率與成交金額涵蓋所有已結案資料，活動趨勢為最近 8 週。金額依選定幣別，以最新參考匯率換算（包括已成交金額，非固定歷史帳務）。加權預測 = 商機金額 × 預設機率（銷售線索 10%、潛在客戶 30%、談判中 60%），是估算而非保證收入。' : 'Pipeline is a current snapshot of open deals. Win rate and won value cover all closed records; activity trends cover the last 8 weeks. Amounts use the selected currency and latest reference rates, including closed deals (not fixed historical accounting). Forecast uses deal value × default probability (Lead 10%, Prospect 30%, Negotiation 60%); it is an estimate, not guaranteed revenue.'}</p></details>
             <div className="mb-6"><p className="text-xs font-semibold uppercase tracking-[.14em] text-primary mb-1">{language === 'zh' ? '業務洞察' : 'Revenue intelligence'}</p><p className="text-sm text-text-secondary">{language === 'zh' ? '掌握管線健康度、轉換效率與團隊活動。' : 'Monitor pipeline health, conversion efficiency, and team activity.'}</p></div>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatCard title={t('pipelineValue', language)} value={money(m.pipelineValue)} description={t('pipelineValueDesc', language)} />

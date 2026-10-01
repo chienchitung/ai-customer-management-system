@@ -1,4 +1,4 @@
-import { DealAmount, useCurrency, CurrencyControls } from './Currency';
+import { DealAmount, useCurrency } from './Currency';
 import { convertMoney } from '../lib/currency';
 import { ArrowRight } from 'lucide-react';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
@@ -8,6 +8,7 @@ import AIAssistant from './AIAssistant';
 import KanbanBoard from './KanbanBoard';
 import { aiErrorMessage } from './Dialogs';
 import { useConfirm } from './ConfirmDialog';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 import { GmailPanel } from './Gmail';
 import { useGmail } from '../hooks/useGmail';
 import { Avatar, STATUS_DOT, Tabs } from './ui';
@@ -46,16 +47,6 @@ interface CustomerDashboardProps {
   onBulkUpdate: (ids: string[], patch: { status?: CustomerStatus; followUpDays?: number }) => void;
 }
 
-const useMediaQuery = (query: string) => {
-  const [matches, setMatches] = useState(() => window.matchMedia(query).matches);
-  useEffect(() => {
-    const mql = window.matchMedia(query);
-    const onChange = () => setMatches(mql.matches);
-    mql.addEventListener('change', onChange);
-    return () => mql.removeEventListener('change', onChange);
-  }, [query]);
-  return matches;
-};
 
 const CustomerDashboard: React.FC<CustomerDashboardProps> = (props) => {
   // Kanban isn't practical on phones (and its toggle is hidden there), so phones always get the list.
@@ -102,7 +93,13 @@ const ListView: React.FC<CustomerDashboardProps> = ({
     }, [customers]);
     const today = todayISO();
     const confirm = useConfirm();
-    const isLargeScreen = useMediaQuery('(min-width: 1024px)');
+    // Side-by-side AI column needs ~1440px (sidebar + list + details + AI); otherwise it stacks in the details.
+    const isLargeScreen = useMediaQuery('(min-width: 1440px)');
+    const stackedAIRef = useRef<HTMLDivElement>(null);
+    // When the assistant opens below the details, bring it into view.
+    useEffect(() => {
+        if (isAIAssistantOpen && !isLargeScreen) stackedAIRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, [isAIAssistantOpen, isLargeScreen]);
     const [searchQuery, setSearchQuery] = useState('');
     const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
     const [statusFilter, setStatusFilter] = useState('all');
@@ -169,9 +166,9 @@ const ListView: React.FC<CustomerDashboardProps> = ({
          <div className="flex h-full overflow-hidden">
             {/* Customer List Panel (Sidebar on desktop, full view on mobile) */}
             <div className={`
-                ${selectedCustomer ? 'hidden md:flex' : 'flex'}
-                w-full md:w-72 xl:w-80 flex-shrink-0
-                flex-col md:border-r border-border
+                ${selectedCustomer ? 'hidden lg:flex' : 'flex'}
+                w-full lg:w-72 2xl:w-80 flex-shrink-0
+                flex-col lg:border-r border-border
             `}>
                 <div className="p-3 border-b border-border">
                   <div className="flex items-center gap-2">
@@ -294,7 +291,7 @@ const ListView: React.FC<CustomerDashboardProps> = ({
 
             {/* Main Content (Details + AI) */}
             <div className={`
-                ${selectedCustomer ? 'flex' : 'hidden md:flex'}
+                ${selectedCustomer ? 'flex' : 'hidden lg:flex'}
                 flex-grow flex-col min-w-0
             `}>
                 {selectedCustomer ? (
@@ -307,7 +304,7 @@ const ListView: React.FC<CustomerDashboardProps> = ({
                         {/* Back button for mobile */}
                         <button
                             onClick={() => onSelectCustomer(null)}
-                            className="md:hidden btn btn-ghost btn-sm -ml-2"
+                            className="lg:hidden btn btn-ghost btn-sm -ml-2"
                             aria-label={t('allCustomers', language)}
                         >
                             <ArrowLeftIcon className="w-4 h-4" />
@@ -328,7 +325,7 @@ const ListView: React.FC<CustomerDashboardProps> = ({
                             language={language}
                         />
                         {!isLargeScreen && isAIAssistantOpen && (
-                            <div className="h-[600px] card overflow-hidden">
+                            <div ref={stackedAIRef} className="h-[600px] card overflow-hidden scroll-mt-4">
                                 <AIAssistant customer={selectedCustomer} language={language} onAddInteraction={onAddInteraction} onSetNextAction={onSetNextAction} />
                             </div>
                         )}
@@ -346,7 +343,7 @@ const ListView: React.FC<CustomerDashboardProps> = ({
                     )}
                 </div>
                 ) : (
-                <div className="hidden md:flex flex-col items-center justify-center h-full text-text-secondary">
+                <div className="hidden lg:flex flex-col items-center justify-center h-full text-text-secondary">
                     <p className="text-sm">{t('selectCustomerPrompt', language)}</p>
                     <button onClick={() => onOpenAddCustomerModal()} className="btn btn-secondary mt-4"><PlusIcon className="w-4 h-4" />{t('addNewCustomer', language)}</button>
                 </div>
@@ -662,7 +659,6 @@ const CustomerProfileCard: React.FC<{customer: Customer, language: 'en' | 'zh'}>
             <div>
                 <h5 className="text-xs font-medium text-text-secondary mb-1">{t('dealValue', language)}</h5>
                 <p className="text-base font-semibold tabular-nums"><DealAmount customer={customer} equivalent /></p>
-                <div className="mt-3"><CurrencyControls language={language} /></div>
             </div>
              <div>
                 <h5 className="text-xs font-medium text-text-secondary mb-1">{t('knownCompetitors', language)}</h5>
