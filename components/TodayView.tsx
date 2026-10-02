@@ -13,6 +13,8 @@ import { CheckIcon, SparklesIcon } from './icons';
 
 type Language = 'en' | 'zh';
 
+const GROUP_LIMIT = 5;
+
 interface TodayViewProps {
   customers: Customer[];
   language: Language;
@@ -31,6 +33,7 @@ const TodayView: React.FC<TodayViewProps> = ({ customers, language, onOpenCustom
   const missing = customers.some(c => c.dealValue != null && convertMoney(c.dealValue, c.dealCurrency || 'USD', fx.currency, fx.rates) == null);
   const metrics = useMemo(() => computeMetrics(customers.map(c => ({ ...c, dealValue: c.dealValue == null ? undefined : convertMoney(c.dealValue, c.dealCurrency || 'USD', fx.currency, fx.rates) ?? undefined })), today), [customers, today, fx.currency, fx.rates]);
   const [hints, setHints] = useState<Record<string, string>>({});
+  const [expanded, setExpanded] = useState<Set<TaskKind>>(new Set());
   const [loadingHints, setLoadingHints] = useState(false);
 
   const count = (kind: TaskKind) => items.filter(i => i.kind === kind).length;
@@ -106,6 +109,9 @@ const TodayView: React.FC<TodayViewProps> = ({ customers, language, onOpenCustom
         ) : GROUPS.map(kind => {
           const group = items.filter(i => i.kind === kind);
           if (!group.length) return null;
+          // Long groups are capped so the list stays a short, actionable to-do list.
+          const isExpanded = expanded.has(kind);
+          const visible = isExpanded ? group : group.slice(0, GROUP_LIMIT);
           return (
             <section key={kind} aria-label={t(`todayView.${kind}`, language)}>
               <h2 className="flex items-center gap-2 mb-2 text-xs font-medium text-text-secondary">
@@ -114,7 +120,7 @@ const TodayView: React.FC<TodayViewProps> = ({ customers, language, onOpenCustom
                 <span className="tabular-nums">{group.length}</span>
               </h2>
               <ul className="card divide-y divide-border overflow-hidden shadow-sm">
-                {group.map(item => {
+                {visible.map(item => {
                   const c = item.customer;
                   const hint = hints[c.id] ?? getCachedProactiveSummary(c, language);
                   return (
@@ -164,6 +170,15 @@ const TodayView: React.FC<TodayViewProps> = ({ customers, language, onOpenCustom
                   );
                 })}
               </ul>
+              {group.length > GROUP_LIMIT && (
+                <button
+                  onClick={() => setExpanded(prev => { const next = new Set(prev); if (next.has(kind)) next.delete(kind); else next.add(kind); return next; })}
+                  aria-expanded={isExpanded}
+                  className="btn btn-ghost btn-sm mt-1 text-text-secondary"
+                >
+                  {isExpanded ? t('todayView.showLess', language) : tf('todayView.showAll', language, { n: group.length })}
+                </button>
+              )}
             </section>
           );
         })}

@@ -9,6 +9,11 @@ import { PlusIcon, TrashIcon } from './icons';
 
 import { generateId } from '../lib/ids';
 
+type FieldErrors = Partial<Record<'name' | 'company' | 'email' | 'dealValue', string>>;
+
+const FieldError: React.FC<{ id: string; message?: string }> = ({ id, message }) =>
+  message ? <p id={id} role="alert" className="mt-1 text-xs text-rose-600 dark:text-rose-400">{message}</p> : null;
+
 interface AddCustomerModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -66,9 +71,14 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onClose, on
     }
   }, [isOpen, customerToEdit, prefill]);
 
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  useEffect(() => { if (isOpen) setFieldErrors({}); }, [isOpen]);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+    // Clear a field's error as soon as the user edits it.
+    setFieldErrors(prev => (name in prev ? { ...prev, [name]: undefined } : prev));
   };
   
   const handleNextActionChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -106,7 +116,19 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onClose, on
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const { dealCurrency, status, name, company, email, dealValue, keyContacts, customerPainPoints, competitors, nextAction } = formData;
-    if (!name.trim() || !company.trim()) { setError(language === 'zh' ? '請填寫有效的姓名與公司名稱，不能只有空白。' : 'Enter a name and company, not only whitespace.'); return; }
+    // In-app validation (localized, shown next to each field) instead of the browser's own bubbles.
+    const zh = language === 'zh';
+    const errors: FieldErrors = {};
+    if (!name.trim()) errors.name = zh ? '請輸入姓名。' : 'Enter a name.';
+    if (!company.trim()) errors.company = zh ? '請輸入公司名稱。' : 'Enter a company.';
+    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) errors.email = zh ? 'Email 格式不正確，例如 name@company.com。' : 'Enter a valid email, e.g. name@company.com.';
+    if (dealValue !== '' && !(Number(dealValue) >= 0)) errors.dealValue = zh ? '金額不能是負數。' : 'Amount cannot be negative.';
+    setFieldErrors(errors);
+    const firstInvalid = (['name', 'company', 'email', 'dealValue'] as const).find(k => errors[k]);
+    if (firstInvalid) {
+      document.getElementById(`customer-${firstInvalid}`)?.focus();
+      return;
+    }
 
     const finalData: Partial<Customer> = {
         dealCurrency, status, name: name.trim(), company: company.trim(), email: email.trim(),
@@ -154,7 +176,7 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onClose, on
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={t(isEditMode ? 'modal.editTitle' : 'modal.addTitle', language)}>
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} noValidate className="space-y-6">
         {error && <p role="alert" className="text-sm text-rose-600">{error}</p>}
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
@@ -164,24 +186,28 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onClose, on
                 <div><label htmlFor="customer-status" className="block text-xs font-medium text-text-secondary mb-1">{language === 'zh' ? '商機階段' : 'Deal stage'}</label><select id="customer-status" name="status" value={formData.status} onChange={handleInputChange} className="input">{Object.values(CustomerStatus).map(status => <option key={status} value={status}>{translateStatus(status, language)}</option>)}</select></div>
                 <div>
                   <label htmlFor="customer-name" className="block text-xs font-medium text-text-secondary mb-1">{t('modal.fullName', language)} *</label>
-                  <input type="text" id="customer-name" name="name" value={formData.name} onChange={handleInputChange} className="input" required autoFocus />
+                  <input type="text" id="customer-name" name="name" value={formData.name} onChange={handleInputChange} aria-invalid={!!fieldErrors.name} aria-describedby={fieldErrors.name ? "customer-name-error" : undefined} className={`input ${fieldErrors.name ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/20" : ""}`} required autoFocus />
+                  <FieldError id="customer-name-error" message={fieldErrors.name} />
                 </div>
                 <div>
                   <label htmlFor="customer-company" className="block text-xs font-medium text-text-secondary mb-1">{t('modal.company', language)} *</label>
-                  <input type="text" id="customer-company" name="company" value={formData.company} onChange={handleInputChange} className="input" required />
+                  <input type="text" id="customer-company" name="company" value={formData.company} onChange={handleInputChange} aria-invalid={!!fieldErrors.company} aria-describedby={fieldErrors.company ? "customer-company-error" : undefined} className={`input ${fieldErrors.company ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/20" : ""}`} required />
+                  <FieldError id="customer-company-error" message={fieldErrors.company} />
                 </div>
                 <div>
                   <label htmlFor="customer-email" className="block text-xs font-medium text-text-secondary mb-1">{t('modal.emailAddress', language)}</label>
-                  <input type="email" id="customer-email" name="email" value={formData.email} onChange={handleInputChange} className="input" />
+                  <input type="email" id="customer-email" name="email" value={formData.email} onChange={handleInputChange} aria-invalid={!!fieldErrors.email} aria-describedby={fieldErrors.email ? "customer-email-error" : undefined} className={`input ${fieldErrors.email ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/20" : ""}`} />
+                  <FieldError id="customer-email-error" message={fieldErrors.email} />
                 </div>
                 <div>
                   <label htmlFor="customer-dealValue" className="block text-xs font-medium text-text-secondary mb-1">{language === 'zh' ? '交易金額' : 'Deal amount'}</label>
                   {/* Amount and its original currency sit together; the converted value is a hint below. */}
                   <div className="flex gap-2">
-                    <input type="number" min="0" step="any" id="customer-dealValue" name="dealValue" placeholder="0.00" value={formData.dealValue} onChange={handleInputChange} className="input flex-1 min-w-0" />
+                    <input type="number" min="0" step="any" id="customer-dealValue" name="dealValue" placeholder="0.00" value={formData.dealValue} onChange={handleInputChange} aria-invalid={!!fieldErrors.dealValue} aria-describedby={fieldErrors.dealValue ? 'customer-dealValue-error' : undefined} className={`input flex-1 min-w-0 ${fieldErrors.dealValue ? 'border-rose-500 focus:border-rose-500 focus:ring-rose-500/20' : ''}`} />
                     <select id="deal-currency" name="dealCurrency" aria-label={language === 'zh' ? '交易原幣' : 'Original currency'} className="input w-24 flex-shrink-0" value={formData.dealCurrency} onChange={handleInputChange}>{CURRENCIES.map(c => <option key={c}>{c}</option>)}</select>
                   </div>
-                  {formData.dealValue !== '' && <p className="mt-1 text-xs text-text-secondary"><DealAmount equivalent customer={{ dealValue: Number(formData.dealValue), dealCurrency: formData.dealCurrency } as Customer} /></p>}
+                  <FieldError id="customer-dealValue-error" message={fieldErrors.dealValue} />
+                  {formData.dealValue !== '' && !fieldErrors.dealValue && <p className="mt-1 text-xs text-text-secondary"><DealAmount equivalent customer={{ dealValue: Number(formData.dealValue), dealCurrency: formData.dealCurrency } as Customer} /></p>}
                 </div>
             </div>
 

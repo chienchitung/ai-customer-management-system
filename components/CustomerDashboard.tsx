@@ -8,6 +8,7 @@ import AIAssistant from './AIAssistant';
 import KanbanBoard from './KanbanBoard';
 import { aiErrorMessage } from './Dialogs';
 import { useConfirm } from './ConfirmDialog';
+import { isDemoCustomer } from '../data/demo';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { GmailPanel } from './Gmail';
 import { useGmail } from '../hooks/useGmail';
@@ -47,6 +48,10 @@ interface CustomerDashboardProps {
   onBulkUpdate: (ids: string[], patch: { status?: CustomerStatus; followUpDays?: number }) => void;
 }
 
+
+const SORT_KEY = 'aicms.sort.v1';
+const SORT_KEYS = ['default', 'due', 'value', 'lastContact', 'name'] as const;
+type SortKey = typeof SORT_KEYS[number];
 
 const CustomerDashboard: React.FC<CustomerDashboardProps> = (props) => {
   // Kanban isn't practical on phones (and its toggle is hidden there), so phones always get the list.
@@ -101,6 +106,10 @@ const ListView: React.FC<CustomerDashboardProps> = ({
         if (isAIAssistantOpen && !isLargeScreen) stackedAIRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, [isAIAssistantOpen, isLargeScreen]);
     const [searchQuery, setSearchQuery] = useState('');
+    const [sortBy, setSortBy] = useState<SortKey>(() => {
+        try { const v = localStorage.getItem(SORT_KEY); return (SORT_KEYS as readonly string[]).includes(v ?? '') ? v as SortKey : 'default'; } catch { return 'default'; }
+    });
+    useEffect(() => { try { localStorage.setItem(SORT_KEY, sortBy); } catch { /* storage unavailable */ } }, [sortBy]);
     const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
     const [statusFilter, setStatusFilter] = useState('all');
     const [lastContactStart, setLastContactStart] = useState('');
@@ -161,6 +170,20 @@ const ListView: React.FC<CustomerDashboardProps> = ({
             });
     }, [customers, searchQuery, statusFilter, lastContactStart, lastContactEnd, dealValueMin, dealValueMax, fx.currency, fx.rates]);
 
+    const sortedCustomers = useMemo(() => {
+        if (sortBy === 'default') return filteredCustomers;
+        const value = (c: Customer) => c.dealValue == null ? -1 : convertMoney(c.dealValue, c.dealCurrency || 'USD', fx.currency, fx.rates) ?? -1;
+        const list = [...filteredCustomers];
+        switch (sortBy) {
+            // Customers without a due date go last.
+            case 'due': return list.sort((a, b) => (a.nextAction?.dueDate || '9999').localeCompare(b.nextAction?.dueDate || '9999'));
+            case 'value': return list.sort((a, b) => value(b) - value(a));
+            case 'lastContact': return list.sort((a, b) => (a.lastContact || '').localeCompare(b.lastContact || ''));
+            case 'name': return list.sort((a, b) => a.name.localeCompare(b.name, language === 'zh' ? 'zh-Hant' : 'en'));
+        }
+        return list;
+    }, [filteredCustomers, sortBy, fx.currency, fx.rates, language]);
+
 
     return (
          <div className="flex h-full overflow-hidden">
@@ -195,6 +218,15 @@ const ListView: React.FC<CustomerDashboardProps> = ({
                     >
                         <FilterIcon className="w-4 h-4" />
                     </button>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 mt-2 text-xs text-text-secondary">
+                    <span aria-live="polite">{tf('sort.count', language, { n: sortedCustomers.length })}</span>
+                    <label className="flex items-center gap-1">
+                      {t('sort.label', language)}
+                      <select value={sortBy} onChange={e => setSortBy(e.target.value as SortKey)} className="bg-transparent text-text-primary font-medium rounded-md px-1 py-1 cursor-pointer">
+                        {SORT_KEYS.map(k => <option key={k} value={k}>{t(`sort.${k}`, language)}</option>)}
+                      </select>
+                    </label>
                   </div>
                   {showAdvancedFilters && (
                     <div className="p-3 mt-3 space-y-3 rounded-md border border-border bg-secondary/40">
@@ -242,7 +274,7 @@ const ListView: React.FC<CustomerDashboardProps> = ({
                     />
                 )}
                 <ul className="p-2 space-y-px flex-grow overflow-y-auto">
-                {filteredCustomers.map(customer => {
+                {sortedCustomers.map(customer => {
                     const due = customer.nextAction?.dueDate;
                     const overdue = isOpen(customer) && !!due && due < today;
                     const dueToday = isOpen(customer) && due === today;
@@ -251,26 +283,31 @@ const ListView: React.FC<CustomerDashboardProps> = ({
                     return (
                     <li
                         key={customer.id}
-                        onClick={() => onSelectCustomer(customer.id)}
-                        aria-current={selectedCustomer?.id === customer.id ? 'true' : undefined}
-                        className={`group px-2 py-2 rounded-md cursor-pointer transition-colors flex items-center gap-2.5 ${
+                        className={`group px-2 py-2 rounded-md transition-colors flex items-center gap-2.5 ${
                             selectedCustomer?.id === customer.id ? 'bg-secondary' : 'hover:bg-secondary/60'
                         }`}
                     >
                         <label className="flex-shrink-0 flex items-center justify-center w-7 h-8 cursor-pointer" onClick={e => e.stopPropagation()}>
                             <input
                                 type="checkbox"
-                                aria-label={customer.name}
+                                aria-label={tf('bulk.selectOne', language, { name: customer.name })}
                                 checked={selectedIds.has(customer.id)}
                                 onClick={e => e.stopPropagation()}
                                 onChange={() => toggleSelected(customer.id)}
                                 className="accent-primary w-4 h-4 cursor-pointer"
                             />
                         </label>
+                        {/* The row body is a button so the list works with keyboard and screen readers. */}
+                        <button
+                            type="button"
+                            onClick={() => onSelectCustomer(customer.id)}
+                            aria-current={selectedCustomer?.id === customer.id ? 'true' : undefined}
+                            className="flex-grow min-w-0 flex items-center gap-2.5 text-left rounded-md"
+                        >
                         <Avatar name={customer.name} />
                         <div className="flex-grow min-w-0">
                             <div className="flex justify-between items-center gap-2">
-                                <h3 className="text-sm font-medium text-text-primary truncate">{customer.name}</h3>
+                                <h3 className="text-sm font-medium text-text-primary truncate">{customer.name}{isDemoCustomer(customer) && <span className="ml-1.5 align-middle text-[10px] font-medium px-1 py-px rounded border border-amber-300 text-amber-800 dark:border-amber-500/40 dark:text-amber-300">{t('demo.tag', language)}</span>}</h3>
                                 {customer.dealValue ? <span className="text-xs text-text-secondary tabular-nums"><DealAmount customer={customer} /></span> : null}
                             </div>
                             <div className="flex items-center gap-1.5 text-xs text-text-secondary min-w-0">
@@ -283,6 +320,7 @@ const ListView: React.FC<CustomerDashboardProps> = ({
                                 </span>
                             </div>
                         </div>
+                        </button>
                     </li>
                     );
                 })}

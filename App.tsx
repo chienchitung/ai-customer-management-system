@@ -21,7 +21,9 @@ import { t, tf } from './localization';
 import { generateId } from './lib/ids';
 import { addDays, todayISO } from './lib/dates';
 import { buildWorkList, withStatus } from './lib/insights';
-import { createDemoCustomers } from './data/demo';
+import { createDemoCustomers, isDemoCustomer } from './data/demo';
+
+const DEMO_BANNER_KEY = 'aicms.demoBannerHidden';
 import { Prefs, loadPrefs, savePrefs, exportJSON, exportCSV, downloadFile, parseCustomers } from './lib/storage';
 
 import { CurrencyProvider } from './components/Currency';
@@ -300,7 +302,21 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
     updatePrefs({ mainView: 'management', viewMode: 'list' });
   }, [updatePrefs]);
 
-  const loadDemo = () => setCustomers(prev => [...createDemoCustomers(language), ...prev]);
+  const loadDemo = () => { dismissDemoBanner(false); setCustomers(prev => [...createDemoCustomers(language), ...prev]); };
+
+  // Demo customers are clearly marked and can be removed in one step, keeping the user's own data.
+  const demoCount = customers.filter(isDemoCustomer).length;
+  const [demoBannerHidden, setDemoBannerHidden] = useState(() => { try { return localStorage.getItem(DEMO_BANNER_KEY) === '1'; } catch { return false; } });
+  const dismissDemoBanner = (hidden: boolean) => {
+    setDemoBannerHidden(hidden);
+    try { if (hidden) localStorage.setItem(DEMO_BANNER_KEY, '1'); else localStorage.removeItem(DEMO_BANNER_KEY); } catch { /* storage unavailable */ }
+  };
+  const clearDemo = () => {
+    const snapshot = customers;
+    setCustomers(prev => prev.filter(c => !isDemoCustomer(c)));
+    setSelectedCustomerId(null);
+    toast(tf('demo.cleared', language, { n: demoCount }), { actionLabel: t('undo', language), onAction: () => setCustomers(snapshot) });
+  };
 
   const resetDemo = async () => {
     if (!(await confirm(t('data.confirmReset', language), { danger: true }))) return;
@@ -390,6 +406,9 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
 
   return (
     <div className="h-screen bg-background font-sans flex overflow-hidden text-text-primary">
+      <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[200] btn btn-primary">
+        {language === 'zh' ? '跳到主要內容' : 'Skip to main content'}
+      </a>
       <Sidebar
         collapsed={sidebarCollapsed}
         onToggle={isWideScreen ? () => updatePrefs({ sidebarCollapsed: !prefs.sidebarCollapsed }) : undefined}
@@ -438,6 +457,13 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
             onChange={e => { const f = e.target.files?.[0]; if (f) handleImport(f); e.target.value = ''; }} />
         </header>
 
+        {demoCount > 0 && !demoBannerHidden && store.loaded && !settingsSection && (
+          <div className="border-b border-border bg-amber-50 dark:bg-amber-500/10 px-4 md:px-6 py-2 flex flex-wrap items-center gap-2 text-sm" role="status">
+            <span className="flex-grow min-w-0">{tf('demo.banner', language, { n: demoCount })}</span>
+            <button onClick={clearDemo} className="btn btn-secondary btn-sm">{t('demo.clear', language)}</button>
+            <button onClick={() => dismissDemoBanner(true)} className="btn btn-ghost btn-sm">{t('demo.keep', language)}</button>
+          </div>
+        )}
         {legacy.length > 0 && store.loaded && (
           <div className="border-b border-border bg-primary/5 px-4 md:px-6 py-2 flex flex-wrap items-center gap-3 text-sm" role="status">
             <span className="flex-grow">{tf('migrate.found', language, { n: legacy.length })}</span>
@@ -446,7 +472,7 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
           </div>
         )}
 
-        <main className={`flex-grow min-h-0 ${mainView === 'management' && !settingsSection && customers.length > 0 ? 'pb-16 md:pb-0' : 'p-4 md:p-6 pb-20 md:pb-6'}`}>
+        <main id="main-content" tabIndex={-1} className={`flex-grow min-h-0 outline-none ${mainView === 'management' && !settingsSection && customers.length > 0 ? 'pb-16 md:pb-0' : 'p-4 md:p-6 pb-20 md:pb-6'}`}>
           <div key={mainView} className="animate-fade-in h-full">
             {settingsSection ? <SettingsPage section={settingsSection} onSection={setSettingsSection} language={language} theme={theme} userEmail={userEmail} onLanguage={language => updatePrefs({ language })} onTheme={theme => updatePrefs({ theme })} dataItems={dataItems} onBack={() => setSettingsSection(null)} /> : !store.loaded ? (
               <div className="space-y-3 max-w-5xl mx-auto" aria-busy="true">
