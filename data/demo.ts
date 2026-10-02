@@ -73,3 +73,6 @@ export const createDemoCustomers = (language: 'en' | 'zh' = 'zh'): Customer[] =>
     },
   ];
 };
+
+/** Demo customers all use ids starting with "demo-". */
+export const isDemoCustomer = (c: Customer) => c.id.startsWith('demo-');

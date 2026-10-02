@@ -137,3 +137,9 @@ body { margin: 0; background: rgb(var(--color-background)); }
 @media (pointer: coarse) {
   .coarse-only { display: block; }
 }
+
+/* Touch devices: give every button at least a 44px touch target (desktop density unchanged). */
+@media (pointer: coarse) {
+  .btn, .btn-sm { min-height: 2.75rem; }
+  .btn-icon { min-width: 2.75rem; }
+}

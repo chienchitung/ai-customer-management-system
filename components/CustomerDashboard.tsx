@@ -8,6 +8,9 @@ import AIAssistant from './AIAssistant';
 import KanbanBoard from './KanbanBoard';
 import { aiErrorMessage } from './Dialogs';
 import { useConfirm } from './ConfirmDialog';
+import { isDemoCustomer } from '../data/demo';
+import { googleCalendarUrl, icsFile } from '../lib/calendar';
+import { downloadFile } from '../lib/storage';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { GmailPanel } from './Gmail';
 import { useGmail } from '../hooks/useGmail';
@@ -45,8 +48,14 @@ interface CustomerDashboardProps {
   onCompleteAction: (customerId: string) => void;
   onDeleteCustomers: (ids: string[]) => void;
   onBulkUpdate: (ids: string[], patch: { status?: CustomerStatus; followUpDays?: number }) => void;
+  onUpdateInteraction: (customerId: string, interactionId: string, patch: Partial<Omit<Interaction, 'id'>>) => void;
+  onDeleteInteraction: (customerId: string, interactionId: string) => void;
 }
 
+
+const SORT_KEY = 'aicms.sort.v1';
+const SORT_KEYS = ['default', 'due', 'value', 'lastContact', 'name'] as const;
+type SortKey = typeof SORT_KEYS[number];
 
 const CustomerDashboard: React.FC<CustomerDashboardProps> = (props) => {
   // Kanban isn't practical on phones (and its toggle is hidden there), so phones always get the list.
@@ -80,6 +89,8 @@ const ListView: React.FC<CustomerDashboardProps> = ({
   onCompleteAction,
   onDeleteCustomers,
   onBulkUpdate,
+  onUpdateInteraction,
+  onDeleteInteraction,
 }) => {
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const toggleSelected = (id: string) => setSelectedIds(prev => {
@@ -101,6 +112,10 @@ const ListView: React.FC<CustomerDashboardProps> = ({
         if (isAIAssistantOpen && !isLargeScreen) stackedAIRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, [isAIAssistantOpen, isLargeScreen]);
     const [searchQuery, setSearchQuery] = useState('');
+    const [sortBy, setSortBy] = useState<SortKey>(() => {
+        try { const v = localStorage.getItem(SORT_KEY); return (SORT_KEYS as readonly string[]).includes(v ?? '') ? v as SortKey : 'default'; } catch { return 'default'; }
+    });
+    useEffect(() => { try { localStorage.setItem(SORT_KEY, sortBy); } catch { /* storage unavailable */ } }, [sortBy]);
     const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
     const [statusFilter, setStatusFilter] = useState('all');
     const [lastContactStart, setLastContactStart] = useState('');
@@ -161,6 +176,20 @@ const ListView: React.FC<CustomerDashboardProps> = ({
             });
     }, [customers, searchQuery, statusFilter, lastContactStart, lastContactEnd, dealValueMin, dealValueMax, fx.currency, fx.rates]);
 
+    const sortedCustomers = useMemo(() => {
+        if (sortBy === 'default') return filteredCustomers;
+        const value = (c: Customer) => c.dealValue == null ? -1 : convertMoney(c.dealValue, c.dealCurrency || 'USD', fx.currency, fx.rates) ?? -1;
+        const list = [...filteredCustomers];
+        switch (sortBy) {
+            // Customers without a due date go last.
+            case 'due': return list.sort((a, b) => (a.nextAction?.dueDate || '9999').localeCompare(b.nextAction?.dueDate || '9999'));
+            case 'value': return list.sort((a, b) => value(b) - value(a));
+            case 'lastContact': return list.sort((a, b) => (a.lastContact || '').localeCompare(b.lastContact || ''));
+            case 'name': return list.sort((a, b) => a.name.localeCompare(b.name, language === 'zh' ? 'zh-Hant' : 'en'));
+        }
+        return list;
+    }, [filteredCustomers, sortBy, fx.currency, fx.rates, language]);
+
 
     return (
          <div className="flex h-full overflow-hidden">
@@ -195,6 +224,15 @@ const ListView: React.FC<CustomerDashboardProps> = ({
                     >
                         <FilterIcon className="w-4 h-4" />
                     </button>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 mt-2 text-xs text-text-secondary">
+                    <span aria-live="polite">{tf('sort.count', language, { n: sortedCustomers.length })}</span>
+                    <label className="flex items-center gap-1">
+                      {t('sort.label', language)}
+                      <select value={sortBy} onChange={e => setSortBy(e.target.value as SortKey)} className="bg-transparent text-text-primary font-medium rounded-md px-1 py-1 cursor-pointer">
+                        {SORT_KEYS.map(k => <option key={k} value={k}>{t(`sort.${k}`, language)}</option>)}
+                      </select>
+                    </label>
                   </div>
                   {showAdvancedFilters && (
                     <div className="p-3 mt-3 space-y-3 rounded-md border border-border bg-secondary/40">
@@ -242,7 +280,7 @@ const ListView: React.FC<CustomerDashboardProps> = ({
                     />
                 )}
                 <ul className="p-2 space-y-px flex-grow overflow-y-auto">
-                {filteredCustomers.map(customer => {
+                {sortedCustomers.map(customer => {
                     const due = customer.nextAction?.dueDate;
                     const overdue = isOpen(customer) && !!due && due < today;
                     const dueToday = isOpen(customer) && due === today;
@@ -251,26 +289,31 @@ const ListView: React.FC<CustomerDashboardProps> = ({
                     return (
                     <li
                         key={customer.id}
-                        onClick={() => onSelectCustomer(customer.id)}
-                        aria-current={selectedCustomer?.id === customer.id ? 'true' : undefined}
-                        className={`group px-2 py-2 rounded-md cursor-pointer transition-colors flex items-center gap-2.5 ${
+                        className={`group px-2 py-2 rounded-md transition-colors flex items-center gap-2.5 ${
                             selectedCustomer?.id === customer.id ? 'bg-secondary' : 'hover:bg-secondary/60'
                         }`}
                     >
                         <label className="flex-shrink-0 flex items-center justify-center w-7 h-8 cursor-pointer" onClick={e => e.stopPropagation()}>
                             <input
                                 type="checkbox"
-                                aria-label={customer.name}
+                                aria-label={tf('bulk.selectOne', language, { name: customer.name })}
                                 checked={selectedIds.has(customer.id)}
                                 onClick={e => e.stopPropagation()}
                                 onChange={() => toggleSelected(customer.id)}
                                 className="accent-primary w-4 h-4 cursor-pointer"
                             />
                         </label>
+                        {/* The row body is a button so the list works with keyboard and screen readers. */}
+                        <button
+                            type="button"
+                            onClick={() => onSelectCustomer(customer.id)}
+                            aria-current={selectedCustomer?.id === customer.id ? 'true' : undefined}
+                            className="flex-grow min-w-0 flex items-center gap-2.5 text-left rounded-md"
+                        >
                         <Avatar name={customer.name} />
                         <div className="flex-grow min-w-0">
                             <div className="flex justify-between items-center gap-2">
-                                <h3 className="text-sm font-medium text-text-primary truncate">{customer.name}</h3>
+                                <h3 className="text-sm font-medium text-text-primary truncate">{customer.name}{isDemoCustomer(customer) && <span className="ml-1.5 align-middle text-[10px] font-medium px-1 py-px rounded border border-amber-300 text-amber-800 dark:border-amber-500/40 dark:text-amber-300">{t('demo.tag', language)}</span>}</h3>
                                 {customer.dealValue ? <span className="text-xs text-text-secondary tabular-nums"><DealAmount customer={customer} /></span> : null}
                             </div>
                             <div className="flex items-center gap-1.5 text-xs text-text-secondary min-w-0">
@@ -283,6 +326,7 @@ const ListView: React.FC<CustomerDashboardProps> = ({
                                 </span>
                             </div>
                         </div>
+                        </button>
                     </li>
                     );
                 })}
@@ -314,6 +358,8 @@ const ListView: React.FC<CustomerDashboardProps> = ({
                         <CustomerDetails
                             customer={selectedCustomer}
                             onAddInteraction={onAddInteraction}
+                            onUpdateInteraction={onUpdateInteraction}
+                            onDeleteInteraction={onDeleteInteraction}
                             onUpdateCustomer={onUpdateCustomer}
                             onEditCustomer={() => onEditCustomer(selectedCustomer)}
                             onSetNextAction={onSetNextAction}
@@ -388,8 +434,10 @@ const CustomerDetails: React.FC<{
   onSnooze: (customerId: string, days: number) => void;
   onCompleteAction: (customerId: string) => void;
   onDelete: () => void;
+  onUpdateInteraction: (customerId: string, interactionId: string, patch: Partial<Omit<Interaction, 'id'>>) => void;
+  onDeleteInteraction: (customerId: string, interactionId: string) => void;
   language: 'en' | 'zh';
-}> = ({ customer, onAddInteraction, onUpdateCustomer, onEditCustomer, onSetNextAction, onSnooze, onCompleteAction, onDelete, language }) => {
+}> = ({ customer, onAddInteraction, onUpdateCustomer, onEditCustomer, onSetNextAction, onSnooze, onCompleteAction, onDelete, onUpdateInteraction, onDeleteInteraction, language }) => {
     const [typeFilter, setTypeFilter] = useState<string>('all');
     const [startDateFilter, setStartDateFilter] = useState<string>('');
     const [endDateFilter, setEndDateFilter] = useState<string>('');
@@ -488,7 +536,7 @@ const CustomerDetails: React.FC<{
                             <button onClick={() => setTab('activity')} className="btn btn-ghost btn-sm">{t('shell.viewAll', language)} <ArrowRight className="w-4 h-4" /></button>
                         )}
                     </div>
-                    <InteractionTable interactions={customer.interactions.slice(0, 3)} language={language} />
+                    <InteractionTable interactions={customer.interactions.slice(0, 3)} language={language} onUpdate={(id, patch) => onUpdateInteraction(customer.id, id, patch)} onDelete={id => onDeleteInteraction(customer.id, id)} />
                 </div>
             </div>
         )}
@@ -511,7 +559,7 @@ const CustomerDetails: React.FC<{
                     <input type="date" value={endDateFilter} onChange={e => setEndDateFilter(e.target.value)} min={startDateFilter} className="input w-auto" aria-label={t('filters.to', language)} />
                 </div>
                 <div className="card">
-                    <InteractionTable interactions={filteredInteractions} language={language} />
+                    <InteractionTable interactions={filteredInteractions} language={language} onUpdate={(id, patch) => onUpdateInteraction(customer.id, id, patch)} onDelete={id => onDeleteInteraction(customer.id, id)} />
                 </div>
             </div>
         )}
@@ -523,7 +571,21 @@ const CustomerDetails: React.FC<{
     );
 };
 
-const InteractionTable: React.FC<{ interactions: Interaction[]; language: 'en' | 'zh' }> = ({ interactions, language }) => (
+const InteractionTable: React.FC<{
+    interactions: Interaction[];
+    language: 'en' | 'zh';
+    onUpdate: (interactionId: string, patch: Partial<Omit<Interaction, 'id'>>) => void;
+    onDelete: (interactionId: string) => void;
+}> = ({ interactions, language, onUpdate, onDelete }) => {
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [draft, setDraft] = useState<{ date: string; type: InteractionType; summary: string }>({ date: '', type: InteractionType.NOTE, summary: '' });
+    const startEdit = (i: Interaction) => { setEditingId(i.id); setDraft({ date: i.date, type: i.type, summary: i.summary }); };
+    const save = () => {
+        if (!editingId || !draft.summary.trim() || !draft.date) return;
+        onUpdate(editingId, { date: draft.date, type: draft.type, summary: draft.summary.trim() });
+        setEditingId(null);
+    };
+    return (
     <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
             <thead className="text-xs text-text-secondary">
@@ -531,24 +593,52 @@ const InteractionTable: React.FC<{ interactions: Interaction[]; language: 'en' |
                     <th className="font-medium px-4 py-2 w-32">{t('table.date', language)}</th>
                     <th className="font-medium px-4 py-2 w-24">{t('table.type', language)}</th>
                     <th className="font-medium px-4 py-2">{t('table.summary', language)}</th>
+                    <th className="w-20"><span className="sr-only">{t('interactionEdit.actions', language)}</span></th>
                 </tr>
             </thead>
             <tbody>
-                {interactions.length > 0 ? interactions.map(interaction => (
-                <tr key={interaction.id} className="border-b border-border last:border-b-0 align-top">
+                {interactions.length > 0 ? interactions.map(interaction => editingId === interaction.id ? (
+                <tr key={interaction.id} className="border-b border-border last:border-b-0 align-top bg-secondary/40">
+                    <td className="px-4 py-2"><input type="date" aria-label={t('table.date', language)} value={draft.date} onChange={e => setDraft(d => ({ ...d, date: e.target.value }))} className="input py-1 w-36" /></td>
+                    <td className="px-4 py-2">
+                        <select aria-label={t('table.type', language)} value={draft.type} onChange={e => setDraft(d => ({ ...d, type: e.target.value as InteractionType }))} className="input py-1 w-24">
+                            {Object.values(InteractionType).map(it => <option key={it} value={it}>{translateInteractionType(it, language)}</option>)}
+                        </select>
+                    </td>
+                    <td className="px-4 py-2">
+                        <textarea autoFocus aria-label={t('table.summary', language)} value={draft.summary} rows={2} onChange={e => setDraft(d => ({ ...d, summary: e.target.value }))}
+                            onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) save(); if (e.key === 'Escape') { e.stopPropagation(); setEditingId(null); } }}
+                            className="input resize-y" />
+                        <div className="flex gap-1.5 mt-1.5">
+                            <button type="button" onClick={save} disabled={!draft.summary.trim() || !draft.date} className="btn btn-primary btn-sm">{t('closeReason.save', language)}</button>
+                            <button type="button" onClick={() => setEditingId(null)} className="btn btn-ghost btn-sm">{t('modal.cancel', language)}</button>
+                        </div>
+                    </td>
+                    <td />
+                </tr>
+                ) : (
+                <tr key={interaction.id} className="group border-b border-border last:border-b-0 align-top">
                     <td className="px-4 py-2.5 whitespace-nowrap text-text-secondary tabular-nums">{formatDate(interaction.date, language)}{interaction.source === 'gmail' && <span className="ml-1 text-rose-500" title="Gmail">✉</span>}</td>
                     <td className="px-4 py-2.5"><span className="chip">{translateInteractionType(interaction.type, language)}</span></td>
                     <td className="px-4 py-2.5 text-text-primary whitespace-pre-wrap">{interaction.summary}</td>
+                    <td className="px-2 py-1.5 whitespace-nowrap text-right">
+                        {/* Always reachable by keyboard; visually quiet until hover/focus on pointer devices. */}
+                        <span className="inline-flex gap-0.5 opacity-60 group-hover:opacity-100 focus-within:opacity-100">
+                            <button type="button" onClick={() => startEdit(interaction)} className="btn btn-ghost btn-icon btn-sm" aria-label={t('interactionEdit.edit', language)} title={t('interactionEdit.edit', language)}><PencilIcon className="w-3.5 h-3.5" /></button>
+                            <button type="button" onClick={() => onDelete(interaction.id)} className="btn btn-ghost btn-icon btn-sm hover:text-rose-600" aria-label={t('interactionEdit.delete', language)} title={t('interactionEdit.delete', language)}><TrashIcon className="w-3.5 h-3.5" /></button>
+                        </span>
+                    </td>
                 </tr>
                 )) : (
                 <tr>
-                    <td colSpan={3} className="px-4 py-6 text-center text-text-secondary">{t('noInteractions', language)}</td>
+                    <td colSpan={4} className="px-4 py-6 text-center text-text-secondary">{t('noInteractions', language)}</td>
                 </tr>
                 )}
             </tbody>
         </table>
     </div>
-);
+    );
+};
 
 const NextActionCard: React.FC<{
     customer: Customer;
@@ -619,6 +709,24 @@ const NextActionCard: React.FC<{
                     <button onClick={onComplete} className={`${smallBtn} btn-primary flex items-center gap-1`}><CheckIcon className="w-3.5 h-3.5" />{t('nextActionCard.complete', language)}</button>
                     <button onClick={() => onSnooze(1)} className={`${smallBtn} btn-secondary`}>{t('nextActionCard.snooze', language)}</button>
                     <button onClick={() => onSnooze(7)} className={`${smallBtn} btn-secondary`}>{t('nextActionCard.snoozeWeek', language)}</button>
+                    {action.dueDate && (() => {
+                        const event = {
+                            title: `${action.description} · ${customer.name}`,
+                            details: [customer.company, customer.email].filter(Boolean).join(' · '),
+                            date: action.dueDate,
+                        };
+                        return (
+                            <span className="inline-flex gap-1 ml-auto">
+                                <a href={googleCalendarUrl(event)} target="_blank" rel="noopener noreferrer" className={`${smallBtn} btn-ghost`} title={t('calendar.google', language)}>
+                                    <CalendarIcon className="w-3.5 h-3.5" />{t('calendar.google', language)}
+                                </a>
+                                <button type="button" className={`${smallBtn} btn-ghost`} title={t('calendar.icsTitle', language)}
+                                    onClick={() => downloadFile(`${customer.name}-${action.dueDate}.ics`, icsFile(event, `${customer.id}-${action.dueDate}`), 'text/calendar;charset=utf-8')}>
+                                    .ics
+                                </button>
+                            </span>
+                        );
+                    })()}
                 </div>
             </div>
         ) : (
@@ -700,6 +808,9 @@ const InteractionLogger: React.FC<{
   const [type, setType] = useState<InteractionType>(InteractionType.NOTE);
   const [organizing, setOrganizing] = useState(false);
   const [aiResult, setAiResult] = useState<OrganizedNotes | null>(null);
+  // After logging, ask for the next step so a follow-up is never forgotten.
+  const [askNext, setAskNext] = useState(false);
+  const [nextDesc, setNextDesc] = useState('');
   const [aiError, setAiError] = useState<string | null>(null);
   const [listening, setListening] = useState(false);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
@@ -711,13 +822,23 @@ const InteractionLogger: React.FC<{
     setType(InteractionType.NOTE);
     setAiResult(null);
     setAiError(null);
+    setAskNext(false);
     recognitionRef.current?.stop();
   }, [customer.id]);
 
   useEffect(() => () => recognitionRef.current?.stop(), []);
 
-  const log = (text: string, interactionType: InteractionType) => {
+  const log = (text: string, interactionType: InteractionType, promptNext = true) => {
     onAddInteraction(customer.id, { type: interactionType, summary: text, date: todayISO() });
+    if (promptNext && isOpen(customer)) {
+      setNextDesc(customer.nextAction?.description || tf('todayView.defaultAction', language, { name: customer.name }));
+      setAskNext(true);
+    }
+  };
+
+  const setFollowUp = (days: number) => {
+    onSetNextAction(customer.id, { description: nextDesc.trim() || tf('todayView.defaultAction', language, { name: customer.name }), dueDate: addDays(todayISO(), days) });
+    setAskNext(false);
   };
 
   const handleSubmit = (e?: React.FormEvent) => {
@@ -747,7 +868,7 @@ const InteractionLogger: React.FC<{
 
   const applyAll = () => {
     if (!aiResult) return;
-    log(aiResult.summary, aiResult.type);
+    log(aiResult.summary, aiResult.type, !aiResult.nextActionDescription);
     if (aiResult.nextActionDescription) {
       onSetNextAction(customer.id, { description: aiResult.nextActionDescription, dueDate: aiResult.nextActionDueDate || addDays(todayISO(), 3) });
     }
@@ -809,6 +930,20 @@ const InteractionLogger: React.FC<{
           <button type="button" onClick={() => handleQuickLog('voicemail', InteractionType.CALL)} className="btn btn-sm btn-ghost border border-dashed border-border">{t('quickLog.voicemail', language)}</button>
           <button type="button" onClick={() => handleQuickLog('meetingScheduled', InteractionType.MEETING)} className="btn btn-sm btn-ghost border border-dashed border-border">{t('quickLog.meetingScheduled', language)}</button>
       </div>
+
+      {askNext && (
+        <div role="group" aria-label={t('followUp.title', language)} className="mx-3 mb-3 p-3 rounded-md border border-primary/30 bg-primary/5 space-y-2 animate-fade-in"
+          onKeyDown={e => { if (e.key === 'Escape') { e.stopPropagation(); setAskNext(false); } }}>
+          <p className="text-sm font-medium flex items-center gap-1.5"><CheckIcon className="w-4 h-4 text-primary" />{t('followUp.title', language)}</p>
+          <input value={nextDesc} onChange={e => setNextDesc(e.target.value)} aria-label={t('nextAction', language)} className="input" />
+          <div className="flex flex-wrap gap-1.5">
+            {([[1, 'followUp.tomorrow'], [3, 'followUp.in3'], [7, 'followUp.nextWeek'], [14, 'followUp.in2w']] as const).map(([days, key]) => (
+              <button key={days} type="button" onClick={() => setFollowUp(days)} className="btn btn-sm btn-secondary">{t(key, language)}</button>
+            ))}
+            <button type="button" onClick={() => setAskNext(false)} className="btn btn-sm btn-ghost ml-auto">{t('followUp.skip', language)}</button>
+          </div>
+        </div>
+      )}
 
       {aiError && <p role="alert" className="text-sm text-rose-600 dark:text-rose-400 px-4 pb-2">{aiError}</p>}
 

@@ -8,12 +8,14 @@ import { CloseReasonModal, CompleteActionModal, SmartCaptureModal, ShortcutsModa
 import { useToast } from './components/Toast';
 import { ConfirmProvider, useConfirm } from './components/ConfirmDialog';
 import AuthScreen from './components/AuthScreen';
+import ImportCsvModal from './components/ImportCsvModal';
 import { BottomNav, SettingsMenu, SyncBadge, SettingsSection } from './components/AppChrome';
 import SettingsPage from './components/SettingsPage';
 import { CommandPalette, Sidebar } from './components/Shell';
 import { ViewListIcon, ViewGridIcon, PlusIcon, ChatbotIcon, SparklesIcon, SearchIcon } from './components/icons';
 import { useAuth } from './hooks/useAuth';
 import { useMediaQuery } from './hooks/useMediaQuery';
+import { useDueReminders } from './hooks/useDueReminders';
 import { useCustomerStore } from './hooks/useCustomerStore';
 import { GmailProvider, useGmailState } from './hooks/useGmail';
 import { isCloud } from './lib/supabase';
@@ -21,7 +23,9 @@ import { t, tf } from './localization';
 import { generateId } from './lib/ids';
 import { addDays, todayISO } from './lib/dates';
 import { buildWorkList, withStatus } from './lib/insights';
-import { createDemoCustomers } from './data/demo';
+import { createDemoCustomers, isDemoCustomer } from './data/demo';
+
+const DEMO_BANNER_KEY = 'aicms.demoBannerHidden';
 import { Prefs, loadPrefs, savePrefs, exportJSON, exportCSV, downloadFile, parseCustomers } from './lib/storage';
 
 import { CurrencyProvider } from './components/Currency';
@@ -33,6 +37,12 @@ const isClosed = (s: CustomerStatus) => s === CustomerStatus.CLOSED_WON || s ===
 
 const isTypingTarget = (el: EventTarget | null) =>
   el instanceof HTMLElement && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName));
+
+// Keeps interactions newest-first and lastContact in step with the latest one.
+const withInteractions = (c: Customer, interactions: Interaction[]): Customer => {
+  const sorted = [...interactions].sort((a, b) => b.date.localeCompare(a.date));
+  return { ...c, interactions: sorted, lastContact: sorted[0]?.date ?? c.createdAt ?? c.lastContact };
+};
 
 const LEGACY_KEY = 'aicms.customers.v1';
 
@@ -113,12 +123,16 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
   const [completeId, setCompleteId] = useState<string | null>(null);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
+  const [isImportCsvOpen, setIsImportCsvOpen] = useState(false);
   const [settingsSection, setSettingsSection] = useState<SettingsSection | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (store.localSaveFailed) toast(t('data.saveFailed', language), { tone: 'error' });
   }, [store.localSaveFailed]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const openToday = useCallback(() => { setSettingsSection(null); updatePrefs({ mainView: 'today' }); }, [updatePrefs]);
+  useDueReminders(customers, prefs.dueReminders, language, openToday, store.loaded);
 
   const todayCount = useMemo(
     () => buildWorkList(customers, todayISO()).filter(i => i.kind === 'overdue' || i.kind === 'dueToday').length,
@@ -150,6 +164,20 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
       lastContact: !c.lastContact || data.date > c.lastContact ? data.date : c.lastContact,
     }));
   }, [updateCustomer]);
+
+  const handleUpdateInteraction = useCallback((customerId: string, interactionId: string, patch: Partial<Omit<Interaction, 'id'>>) => {
+    updateCustomer(customerId, c => withInteractions(c, c.interactions.map(i => (i.id === interactionId ? { ...i, ...patch } : i))));
+  }, [updateCustomer]);
+
+  const handleDeleteInteraction = useCallback((customerId: string, interactionId: string) => {
+    const removed = customers.find(c => c.id === customerId)?.interactions.find(i => i.id === interactionId);
+    if (!removed) return;
+    updateCustomer(customerId, c => withInteractions(c, c.interactions.filter(i => i.id !== interactionId)));
+    toast(t('interactionEdit.deleted', language), {
+      actionLabel: t('undo', language),
+      onAction: () => updateCustomer(customerId, c => withInteractions(c, [removed, ...c.interactions])),
+    });
+  }, [customers, updateCustomer, toast, language]);
 
   const handleUpdateCustomer = useCallback((customerId: string, data: Partial<Omit<Customer, 'id'>>) => {
     if (data.status) {
@@ -198,9 +226,12 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
 
   // ---------- Customer modal ----------
 
-  const openAddModal = useCallback((status: CustomerStatus = CustomerStatus.LEAD) => {
+  // Callers may pass a stage (kanban column) or be wired straight to onClick, which passes
+  // the click event — only accept a real stage, otherwise default to Lead.
+  const openAddModal = useCallback((status?: unknown) => {
+    const stage = Object.values(CustomerStatus).includes(status as CustomerStatus) ? (status as CustomerStatus) : CustomerStatus.LEAD;
     setCustomerToEdit(null);
-    setPrefill({ status });
+    setPrefill({ status: stage });
     setSettingsSection(null);
     pendingInteraction.current = undefined;
     setIsCustomerModalOpen(true);
@@ -297,7 +328,21 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
     updatePrefs({ mainView: 'management', viewMode: 'list' });
   }, [updatePrefs]);
 
-  const loadDemo = () => setCustomers(prev => [...createDemoCustomers(language), ...prev]);
+  const loadDemo = () => { dismissDemoBanner(false); setCustomers(prev => [...createDemoCustomers(language), ...prev]); };
+
+  // Demo customers are clearly marked and can be removed in one step, keeping the user's own data.
+  const demoCount = customers.filter(isDemoCustomer).length;
+  const [demoBannerHidden, setDemoBannerHidden] = useState(() => { try { return localStorage.getItem(DEMO_BANNER_KEY) === '1'; } catch { return false; } });
+  const dismissDemoBanner = (hidden: boolean) => {
+    setDemoBannerHidden(hidden);
+    try { if (hidden) localStorage.setItem(DEMO_BANNER_KEY, '1'); else localStorage.removeItem(DEMO_BANNER_KEY); } catch { /* storage unavailable */ }
+  };
+  const clearDemo = () => {
+    const snapshot = customers;
+    setCustomers(prev => prev.filter(c => !isDemoCustomer(c)));
+    setSelectedCustomerId(null);
+    toast(tf('demo.cleared', language, { n: demoCount }), { actionLabel: t('undo', language), onAction: () => setCustomers(snapshot) });
+  };
 
   const resetDemo = async () => {
     if (!(await confirm(t('data.confirmReset', language), { danger: true }))) return;
@@ -319,11 +364,12 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
   const dataItems = [
     { label: t('data.exportJson', language), onClick: () => downloadFile(`customers-${stamp()}.json`, exportJSON(customers), 'application/json') },
     { label: t('data.exportCsv', language), onClick: () => downloadFile(`customers-${stamp()}.csv`, exportCSV(customers), 'text/csv;charset=utf-8') },
+    { label: t('data.importCsv', language), onClick: () => setIsImportCsvOpen(true) },
     { label: t('data.importJson', language), onClick: () => fileInput.current?.click() },
     { label: t('data.resetDemo', language), onClick: resetDemo, danger: true },
   ];
 
-  const anyModalOpen = isCustomerModalOpen || isCaptureOpen || !!closePrompt || !!completeId || isShortcutsOpen || isPaletteOpen;
+  const anyModalOpen = isCustomerModalOpen || isCaptureOpen || !!closePrompt || !!completeId || isShortcutsOpen || isPaletteOpen || isImportCsvOpen;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -387,6 +433,9 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
 
   return (
     <div className="h-screen bg-background font-sans flex overflow-hidden text-text-primary">
+      <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[200] btn btn-primary">
+        {language === 'zh' ? '跳到主要內容' : 'Skip to main content'}
+      </a>
       <Sidebar
         collapsed={sidebarCollapsed}
         onToggle={isWideScreen ? () => updatePrefs({ sidebarCollapsed: !prefs.sidebarCollapsed }) : undefined}
@@ -435,6 +484,13 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
             onChange={e => { const f = e.target.files?.[0]; if (f) handleImport(f); e.target.value = ''; }} />
         </header>
 
+        {demoCount > 0 && !demoBannerHidden && store.loaded && !settingsSection && (
+          <div className="border-b border-border bg-amber-50 dark:bg-amber-500/10 px-4 md:px-6 py-2 flex flex-wrap items-center gap-2 text-sm" role="status">
+            <span className="flex-grow min-w-0">{tf('demo.banner', language, { n: demoCount })}</span>
+            <button onClick={clearDemo} className="btn btn-secondary btn-sm">{t('demo.clear', language)}</button>
+            <button onClick={() => dismissDemoBanner(true)} className="btn btn-ghost btn-sm">{t('demo.keep', language)}</button>
+          </div>
+        )}
         {legacy.length > 0 && store.loaded && (
           <div className="border-b border-border bg-primary/5 px-4 md:px-6 py-2 flex flex-wrap items-center gap-3 text-sm" role="status">
             <span className="flex-grow">{tf('migrate.found', language, { n: legacy.length })}</span>
@@ -443,9 +499,9 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
           </div>
         )}
 
-        <main className={`flex-grow min-h-0 ${mainView === 'management' && !settingsSection && customers.length > 0 ? 'pb-16 md:pb-0' : 'p-4 md:p-6 pb-20 md:pb-6'}`}>
+        <main id="main-content" tabIndex={-1} className={`flex-grow min-h-0 outline-none ${mainView === 'management' && !settingsSection && customers.length > 0 ? 'pb-16 md:pb-0' : 'p-4 md:p-6 pb-20 md:pb-6'}`}>
           <div key={mainView} className="animate-fade-in h-full">
-            {settingsSection ? <SettingsPage section={settingsSection} onSection={setSettingsSection} language={language} theme={theme} userEmail={userEmail} onLanguage={language => updatePrefs({ language })} onTheme={theme => updatePrefs({ theme })} dataItems={dataItems} onBack={() => setSettingsSection(null)} /> : !store.loaded ? (
+            {settingsSection ? <SettingsPage section={settingsSection} onSection={setSettingsSection} language={language} theme={theme} userEmail={userEmail} onLanguage={language => updatePrefs({ language })} onTheme={theme => updatePrefs({ theme })} dueReminders={prefs.dueReminders} onDueReminders={on => updatePrefs({ dueReminders: on })} dataItems={dataItems} onBack={() => setSettingsSection(null)} /> : !store.loaded ? (
               <div className="space-y-3 max-w-5xl mx-auto" aria-busy="true">
                 {[0, 1, 2, 3].map(i => <div key={i} className="h-16 rounded-lg bg-secondary animate-pulse" />)}
               </div>
@@ -469,6 +525,8 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
                 selectedCustomer={selectedCustomer}
                 onSelectCustomer={setSelectedCustomerId}
                 onAddInteraction={handleAddInteraction}
+                onUpdateInteraction={handleUpdateInteraction}
+                onDeleteInteraction={handleDeleteInteraction}
                 onUpdateCustomer={handleUpdateCustomer}
                 onOpenAddCustomerModal={openAddModal}
                 onEditCustomer={openEditModal}
@@ -490,6 +548,20 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
 
       <BottomNav view={settingsSection ? undefined : mainView} onChange={v => { setSettingsSection(null); updatePrefs({ mainView: v }); }} todayCount={todayCount} language={language} />
 
+      <ImportCsvModal
+        isOpen={isImportCsvOpen}
+        onClose={() => setIsImportCsvOpen(false)}
+        existing={customers}
+        language={language}
+        onImport={imported => {
+          const snapshot = customers;
+          setCustomers(prev => [...imported, ...prev]);
+          setIsImportCsvOpen(false);
+          setSettingsSection(null);
+          updatePrefs({ mainView: 'management' });
+          toast(tf('data.importOk', language, { n: imported.length }), { actionLabel: t('undo', language), onAction: () => setCustomers(snapshot) });
+        }}
+      />
       {isPaletteOpen && <CommandPalette
         isOpen
         onClose={() => setIsPaletteOpen(false)}
@@ -506,6 +578,8 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
         onSave={handleSaveCustomer}
         customerToEdit={customerToEdit}
         prefill={prefill}
+        existing={customers}
+        onOpenExisting={id => { closeCustomerModal(); openCustomer(id); }}
         language={language}
       />
       <SmartCaptureModal isOpen={isCaptureOpen} onClose={() => setIsCaptureOpen(false)} onExtracted={handleExtracted} language={language} />
