@@ -198,9 +198,12 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
 
   // ---------- Customer modal ----------
 
-  const openAddModal = useCallback((status: CustomerStatus = CustomerStatus.LEAD) => {
+  // Callers may pass a stage (kanban column) or be wired straight to onClick, which passes
+  // the click event — only accept a real stage, otherwise default to Lead.
+  const openAddModal = useCallback((status?: unknown) => {
+    const stage = Object.values(CustomerStatus).includes(status as CustomerStatus) ? (status as CustomerStatus) : CustomerStatus.LEAD;
     setCustomerToEdit(null);
-    setPrefill({ status });
+    setPrefill({ status: stage });
     setSettingsSection(null);
     pendingInteraction.current = undefined;
     setIsCustomerModalOpen(true);
