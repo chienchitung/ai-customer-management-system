@@ -14,6 +14,7 @@ export interface Prefs {
   mainView: 'today' | 'management' | 'dashboard';
   isAIAssistantOpen: boolean;
   sidebarCollapsed: boolean;
+  dueReminders: boolean;
 }
 
 const defaultLanguage = (): Prefs['language'] =>
@@ -30,6 +31,7 @@ export const loadPrefs = (): Prefs => {
     mainView: 'today',
     isAIAssistantOpen: false,
     sidebarCollapsed: false,
+    dueReminders: false,
   };
   try {
     const raw = localStorage.getItem(PREFS_KEY);

@@ -154,7 +154,7 @@ const translations = {
         },
         bulk: { selectOne: 'Select {name}', selected: '{n} selected', setStatus: 'Set status...', followUp: 'Follow up in 3 days', clear: 'Clear', selectAll: 'Select all', delete: 'Delete', confirmDelete: 'Delete {n} customers? This cannot be undone.' },
         data: {
-            menu: 'Data', exportJson: 'Export backup (JSON)', exportCsv: 'Export to Excel (CSV)', importJson: 'Import backup (JSON)', resetDemo: 'Reset to demo data',
+            menu: 'Data', exportJson: 'Export backup (JSON)', exportCsv: 'Export to Excel (CSV)', importCsv: 'Import customers (CSV / Excel)', importJson: 'Import backup (JSON)', resetDemo: 'Reset to demo data',
             importOk: 'Imported {n} customers.', importFail: 'This file is not a valid backup.', confirmImport: 'Replace all current data with {n} customers from the file?', confirmReset: 'Replace all current data with the demo data?',
             saveFailed: 'Could not save to this browser. Export a backup to avoid losing changes.',
         },
@@ -203,6 +203,9 @@ const translations = {
         },
         sort: { label: 'Sort', count: '{n} customers', default: 'Default order', due: 'Next due date', value: 'Deal value (high→low)', lastContact: 'Least recently contacted', name: 'Name' },
         demo: { banner: 'You are viewing {n} demo customers. Clear them when you are ready to start with your own data.', clear: 'Clear demo data', keep: 'Keep for now', cleared: 'Removed {n} demo customers.', tag: 'Demo' },
+        interactionEdit: { edit: 'Edit interaction', delete: 'Delete interaction', deleted: 'Interaction deleted.', actions: 'Actions' },
+        followUp: { title: 'Logged. What is the next step?', tomorrow: 'Tomorrow', in3: 'In 3 days', nextWeek: 'Next week', in2w: 'In 2 weeks', skip: 'Skip' },
+        calendar: { google: 'Add to Google Calendar', icsTitle: 'Download calendar file (Outlook / Apple Calendar)' },
         // Statuses
         statuses: {
             [CustomerStatus.LEAD]: 'Lead',
@@ -365,7 +368,7 @@ const translations = {
         },
         bulk: { selectOne: '選取 {name}', selected: '已選 {n} 位', setStatus: '變更狀態...', followUp: '3 天後跟進', clear: '取消選取', selectAll: '全選', delete: '刪除', confirmDelete: '確定刪除 {n} 位客戶？此動作無法復原。' },
         data: {
-            menu: '資料', exportJson: '匯出備份 (JSON)', exportCsv: '匯出 Excel (CSV)', importJson: '匯入備份 (JSON)', resetDemo: '重設為示範資料',
+            menu: '資料', exportJson: '匯出備份 (JSON)', exportCsv: '匯出 Excel (CSV)', importCsv: '匯入客戶 (CSV / Excel)', importJson: '匯入備份 (JSON)', resetDemo: '重設為示範資料',
             importOk: '已匯入 {n} 位客戶。', importFail: '檔案不是有效的備份。', confirmImport: '要以檔案中的 {n} 位客戶取代目前所有資料嗎？', confirmReset: '要以示範資料取代目前所有資料嗎？',
             saveFailed: '無法儲存到此瀏覽器，請先匯出備份以免遺失資料。',
         },
@@ -414,6 +417,9 @@ const translations = {
         },
         sort: { label: '排序', count: '共 {n} 位', default: '預設順序', due: '下一步到期日', value: '交易金額（高→低）', lastContact: '最久未聯絡', name: '名稱' },
         demo: { banner: '目前包含 {n} 位示範客戶。準備好使用自己的資料時，可一鍵清除。', clear: '清除示範資料', keep: '先保留', cleared: '已移除 {n} 位示範客戶。', tag: '示範' },
+        interactionEdit: { edit: '編輯互動', delete: '刪除互動', deleted: '已刪除互動記錄。', actions: '操作' },
+        followUp: { title: '已記錄。下一步要做什麼？', tomorrow: '明天', in3: '3 天後', nextWeek: '下週', in2w: '2 週後', skip: '略過' },
+        calendar: { google: '加入 Google 日曆', icsTitle: '下載行事曆檔（Outlook / Apple 行事曆）' },
         // Statuses
         statuses: {
             [CustomerStatus.LEAD]: '銷售線索',

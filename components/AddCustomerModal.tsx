@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { CURRENCIES } from '../lib/currency';
 import { DealAmount } from './Currency';
 import { ChevronRight } from 'lucide-react';
@@ -21,8 +21,19 @@ interface AddCustomerModalProps {
   customerToEdit: Customer | null;
   /** Pre-filled values for a new customer (e.g. from smart capture). */
   prefill?: Partial<Customer> | null;
+  /** Existing customers, used to warn about likely duplicates when adding. */
+  existing?: Customer[];
+  onOpenExisting?: (customerId: string) => void;
   language: 'en' | 'zh';
 }
+
+const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
+
+/** Same email (case-insensitive) or same name + company counts as a likely duplicate. */
+export const findDuplicate = (existing: Customer[], name: string, company: string, email: string) =>
+  existing.find(c =>
+    (email.trim() && c.email && norm(c.email) === norm(email)) ||
+    (norm(c.name) === norm(name) && norm(c.company) === norm(company)));
 
 const getInitialState = (customer: Partial<Customer> | null) => {
     if (customer) {
@@ -57,7 +68,7 @@ const getInitialState = (customer: Partial<Customer> | null) => {
 };
 
 
-const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onClose, onSave, customerToEdit, prefill, language }) => {
+const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onClose, onSave, customerToEdit, prefill, existing = [], onOpenExisting, language }) => {
   const [formData, setFormData] = useState(getInitialState(customerToEdit ?? prefill ?? null));
   const [error, setError] = useState('');
   const isEditMode = !!customerToEdit;
@@ -72,11 +83,15 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onClose, on
   }, [isOpen, customerToEdit, prefill]);
 
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
-  useEffect(() => { if (isOpen) setFieldErrors({}); }, [isOpen]);
+  const [duplicate, setDuplicate] = useState<Customer | null>(null);
+  // A ref (not state) so "Add anyway" takes effect within the same submit.
+  const allowDuplicate = useRef(false);
+  useEffect(() => { if (isOpen) { setFieldErrors({}); setDuplicate(null); allowDuplicate.current = false; } }, [isOpen]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+    if (['name', 'company', 'email'].includes(name)) { setDuplicate(null); allowDuplicate.current = false; }
     // Clear a field's error as soon as the user edits it.
     setFieldErrors(prev => (name in prev ? { ...prev, [name]: undefined } : prev));
   };
@@ -138,6 +153,10 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onClose, on
         competitors: competitors.map(c => c.trim()).filter(c => c !== ''),
         nextAction: nextAction.description.trim() ? { description: nextAction.description.trim(), dueDate: nextAction.dueDate } : undefined,
     };
+    if (!customerToEdit && !allowDuplicate.current) {
+      const dup = findDuplicate(existing, name, company, email);
+      if (dup) { setDuplicate(dup); return; }
+    }
     onSave(finalData, customerToEdit?.id);
   };
 
@@ -177,6 +196,17 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onClose, on
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={t(isEditMode ? 'modal.editTitle' : 'modal.addTitle', language)}>
       <form onSubmit={handleSubmit} noValidate className="space-y-6">
+        {duplicate && (
+          <div role="alert" className="rounded-lg border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 p-3 text-sm space-y-2">
+            <p>{language === 'zh'
+              ? `可能重複：已有「${duplicate.name}」（${duplicate.company}${duplicate.email ? `，${duplicate.email}` : ''}）。`
+              : `Possible duplicate: "${duplicate.name}" (${duplicate.company}${duplicate.email ? `, ${duplicate.email}` : ''}) already exists.`}</p>
+            <div className="flex flex-wrap gap-2">
+              {onOpenExisting && <button type="button" className="btn btn-secondary btn-sm" onClick={() => onOpenExisting(duplicate.id)}>{language === 'zh' ? '開啟現有客戶' : 'Open existing customer'}</button>}
+              <button type="button" className="btn btn-ghost btn-sm" onClick={e => { allowDuplicate.current = true; e.currentTarget.form?.requestSubmit(); }}>{language === 'zh' ? '仍要新增' : 'Add anyway'}</button>
+            </div>
+          </div>
+        )}
         {error && <p role="alert" className="text-sm text-rose-600">{error}</p>}
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
