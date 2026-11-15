@@ -1,7 +1,7 @@
 import { GoogleGenAI } from '@google/genai';
 import { Handler, HttpError, readJson, route, sendJson, queryParams } from './http.js';
 import { ServerConfig, configFromEnv } from './config.js';
-import { LOCAL_USER, createAdmin, requireUser } from './supabase.js';
+import { ACCESS_CODE_USER, LOCAL_USER, createAdmin, requireUser } from './supabase.js';
 import { MAX_DOCUMENT_BYTES, DOCUMENT_TYPES, checkComPDFTask, signTask, startComPDFTask, verifyTask } from './compdf.js';
 import { GMAIL_SCOPES, getMessageText, getProfileEmail, listMessagesWith, listRecentInbox, refreshAccessToken, revokeToken, sendEmail } from './google.js';
 
@@ -38,6 +38,20 @@ export const createRoutes = (config: ServerConfig, fetchImpl: typeof fetch = fet
   const ai = config.geminiApiKey ? new GoogleGenAI({ apiKey: config.geminiApiKey }) : null;
   const admin = createAdmin(config, fetchImpl);
 
+  // Access-code mode has no database, so its daily limit is counted per server instance. It is a
+  // rough cap (each warm instance counts separately), enough to stop a leaked code from running up a bill.
+  const accessUsage = { day: '', count: 0 };
+  /** Counts one AI or document call against the user's daily limit; false when the limit is reached. */
+  const consumeQuota = async (userId: string) => {
+    if (userId === LOCAL_USER) return true;
+    if (userId === ACCESS_CODE_USER) {
+      const day = new Date().toISOString().slice(0, 10);
+      if (accessUsage.day !== day) { accessUsage.day = day; accessUsage.count = 0; }
+      return ++accessUsage.count <= config.aiDailyLimit;
+    }
+    return !admin.enabled || admin.consumeAiQuota(userId, config.aiDailyLimit);
+  };
+
   const aiHandler: Handler = async (req, res) => {
     const userId = await requireUser(req, config, fetchImpl);
     if (!ai) throw new HttpError(500, 'missing_api_key');
@@ -46,7 +60,7 @@ export const createRoutes = (config: ServerConfig, fetchImpl: typeof fetch = fet
     if (!Array.isArray(body?.contents) || body.contents.length === 0 || body.contents.length > 60) {
       throw new HttpError(400, 'bad_request');
     }
-    if (userId !== LOCAL_USER && admin.enabled && !(await admin.consumeAiQuota(userId, config.aiDailyLimit))) {
+    if (!(await consumeQuota(userId))) {
       throw new HttpError(429, 'quota_exceeded');
     }
 
@@ -181,7 +195,7 @@ export const createRoutes = (config: ServerConfig, fetchImpl: typeof fetch = fet
       const bytes = Buffer.from(dataBase64, 'base64');
       if (bytes.length === 0) throw new HttpError(400, 'bad_request');
       if (bytes.length > MAX_DOCUMENT_BYTES) throw new HttpError(413, 'payload_too_large');
-      if (userId !== LOCAL_USER && admin.enabled && !(await admin.consumeAiQuota(userId, config.aiDailyLimit))) {
+      if (!(await consumeQuota(userId))) {
         throw new HttpError(429, 'quota_exceeded');
       }
       const taskId = await startComPDFTask(config, { fileName, contentType, bytes }, fetchImpl);

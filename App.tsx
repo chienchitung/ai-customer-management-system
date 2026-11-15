@@ -6,6 +6,7 @@ import AddCustomerModal from './components/AddCustomerModal';
 import TodayView from './components/TodayView';
 import { CloseReasonModal, CompleteActionModal, SmartCaptureModal, ShortcutsModal } from './components/Dialogs';
 import { DocumentAgentModal } from './components/DocumentAgentModal';
+import { AccessCodeDialog } from './components/AccessCodeDialog';
 import { useToast } from './components/Toast';
 import { ConfirmProvider, useConfirm } from './components/ConfirmDialog';
 import AuthScreen from './components/AuthScreen';
@@ -590,6 +591,7 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
         language={language}
       />
       <SmartCaptureModal isOpen={isCaptureOpen} onClose={() => setIsCaptureOpen(false)} onExtracted={handleExtracted} language={language} />
+      <AccessCodeDialog language={language} />
       <DocumentAgentModal
         isOpen={docAgentFor !== undefined}
         onClose={() => setDocAgentFor(undefined)}
