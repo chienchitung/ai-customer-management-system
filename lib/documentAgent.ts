@@ -30,6 +30,26 @@ export interface DocumentAnalysis {
   watchItems?: string[];
 }
 
+// Models sometimes fill unknown fields with a placeholder instead of leaving them empty.
+const PLACEHOLDER = /^(n\/?a|none|null|unknown|not (specified|applicable|available)|-+|—|不適用|無|未知|未提供|未註明|不詳)$/i;
+const real = (s?: string) => (s && !PLACEHOLDER.test(s.trim()) ? s.trim() : '');
+
+/** Blanks placeholder values such as "N/A" or "不適用" so they never reach the CRM. */
+export const cleanAnalysis = (a: DocumentAnalysis): DocumentAnalysis => ({
+  ...a,
+  counterpartyName: real(a.counterpartyName),
+  counterpartyCompany: real(a.counterpartyCompany),
+  counterpartyEmail: real(a.counterpartyEmail),
+  matchedCustomerId: real(a.matchedCustomerId),
+  nextActionDescription: real(a.nextActionDescription),
+  watchItems: (a.watchItems ?? []).map(real).filter(Boolean),
+  newPainPoints: (a.newPainPoints ?? []).map(real).filter(Boolean),
+  newCompetitors: (a.newCompetitors ?? []).map(real).filter(Boolean),
+});
+
+/** Whether the document names anyone a new customer could be created from. */
+export const hasCounterparty = (a: DocumentAnalysis) => !!(a.counterpartyName || a.counterpartyCompany || a.counterpartyEmail);
+
 export type MatchReason = 'email' | 'ai' | 'company';
 
 const normCompany = (s: string) =>
