@@ -42,7 +42,7 @@ describe('/api/documents/parse', () => {
     const seen: Seen = [];
     const routes = createRoutes(configFromEnv({ ...env, COMPDF_API_KEY: 'ck' }), fakeFetch(seen));
     const r = await call(routes, pdf);
-    expect(r).toEqual({ status: 200, body: { text: '# Purchase Order\n\nTotal: USD 48,000', truncated: false, pages: 2, taskId: 't-1' } });
+    expect(r).toEqual({ status: 200, body: { text: '# Purchase Order\n\nTotal: USD 48,000', truncated: false, pages: null, taskId: 't-1' } });
     expect(seen[0].url).toBe('https://api-server.compdf.com/server/v2/process/pdf/markdown');
     expect(seen[0].headers['x-api-key']).toBe('ck');
     expect(seen[0].form?.get('enableOcr')).toBe('1');
@@ -75,6 +75,18 @@ describe('/api/documents/parse', () => {
     expect((await call(failed, pdf)).body.error).toBe('compdf_unreadable');
     const badKey = createRoutes(configFromEnv({ ...env, COMPDF_API_KEY: 'ck' }), fakeFetch(seen, { compdf: { code: '401', msg: 'Invalid API key' } }));
     expect((await call(badKey, pdf)).body.error).toBe('compdf_unauthorized');
+  });
+
+  it('treats the real ComPDF key errors as a key problem, and trims the configured key', async () => {
+    // Observed against the live API: a wrong key returns 403 with an empty body; no key returns 200 + code 01001.
+    const routesFor = (fetchImpl: typeof fetch) => createRoutes(configFromEnv({ ...env, COMPDF_API_KEY: ' ck\n' }), fetchImpl);
+    const base = fakeFetch([]);
+    const emptyForbidden = (async (input: any, init: any) => String(input).includes('api-server.compdf.com') ? new Response('', { status: 403 }) : base(input, init)) as typeof fetch;
+    expect((await call(routesFor(emptyForbidden), pdf)).body.error).toBe('compdf_unauthorized');
+    const seen: Seen = [];
+    const unknownUser = routesFor(fakeFetch(seen, { compdf: { code: '01001', msg: '未知用户类型！', data: null } }));
+    expect((await call(unknownUser, pdf)).body.error).toBe('compdf_unauthorized');
+    expect(seen[0].headers['x-api-key']).toBe('ck');
   });
 });
 
