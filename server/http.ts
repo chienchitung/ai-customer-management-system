@@ -13,7 +13,7 @@ export class HttpError extends Error {
 }
 
 /** Reads a JSON body. Vercel pre-parses bodies; the Vite dev server does not. */
-export const readJson = async <T>(req: Req): Promise<T> => {
+export const readJson = async <T>(req: Req, maxBytes = MAX_BODY_BYTES): Promise<T> => {
   if (req.body !== undefined) {
     if (typeof req.body === 'string') return JSON.parse(req.body) as T;
     return req.body as T;
@@ -23,7 +23,7 @@ export const readJson = async <T>(req: Req): Promise<T> => {
     const chunks: Buffer[] = [];
     req.on('data', (chunk: Buffer) => {
       size += chunk.length;
-      if (size > MAX_BODY_BYTES) {
+      if (size > maxBytes) {
         reject(new HttpError(413, 'payload_too_large'));
         req.destroy();
         return;

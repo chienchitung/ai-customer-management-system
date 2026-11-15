@@ -12,6 +12,7 @@ export {
   Sparkles as SparklesIcon,
   Clipboard as ClipboardIcon,
   ClipboardPaste as PasteIcon,
+  FileText as DocumentIcon,
   Check as CheckIcon,
   User as UserIcon,
   Pencil as PencilIcon,

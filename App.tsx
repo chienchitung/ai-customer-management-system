@@ -5,6 +5,7 @@ import AnalyticsDashboard from './components/AnalyticsDashboard';
 import AddCustomerModal from './components/AddCustomerModal';
 import TodayView from './components/TodayView';
 import { CloseReasonModal, CompleteActionModal, SmartCaptureModal, ShortcutsModal } from './components/Dialogs';
+import { DocumentAgentModal } from './components/DocumentAgentModal';
 import { useToast } from './components/Toast';
 import { ConfirmProvider, useConfirm } from './components/ConfirmDialog';
 import AuthScreen from './components/AuthScreen';
@@ -12,7 +13,7 @@ import ImportCsvModal from './components/ImportCsvModal';
 import { BottomNav, SettingsMenu, SyncBadge, SettingsSection } from './components/AppChrome';
 import SettingsPage from './components/SettingsPage';
 import { CommandPalette, Sidebar } from './components/Shell';
-import { ViewListIcon, ViewGridIcon, PlusIcon, ChatbotIcon, PasteIcon, SearchIcon } from './components/icons';
+import { ViewListIcon, ViewGridIcon, PlusIcon, ChatbotIcon, PasteIcon, SearchIcon, DocumentIcon } from './components/icons';
 import { useAuth } from './hooks/useAuth';
 import { useMediaQuery } from './hooks/useMediaQuery';
 import { useDueReminders } from './hooks/useDueReminders';
@@ -119,6 +120,8 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
   const [prefill, setPrefill] = useState<Partial<Customer> | null>(null);
   const pendingInteraction = useRef<string | undefined>();
   const [isCaptureOpen, setIsCaptureOpen] = useState(false);
+  // undefined = closed; null = open without a customer; string = opened from that customer's page.
+  const [docAgentFor, setDocAgentFor] = useState<string | null | undefined>(undefined);
   const [closePrompt, setClosePrompt] = useState<{ id: string; status: CustomerStatus } | null>(null);
   const [completeId, setCompleteId] = useState<string | null>(null);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
@@ -369,7 +372,7 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
     { label: t('data.resetDemo', language), onClick: resetDemo, danger: true },
   ];
 
-  const anyModalOpen = isCustomerModalOpen || isCaptureOpen || !!closePrompt || !!completeId || isShortcutsOpen || isPaletteOpen || isImportCsvOpen;
+  const anyModalOpen = isCustomerModalOpen || isCaptureOpen || docAgentFor !== undefined || !!closePrompt || !!completeId || isShortcutsOpen || isPaletteOpen || isImportCsvOpen;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -401,6 +404,7 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
   const paletteActions = [
     { id: 'a-new', label: t('shell.newCustomer', language), hint: 'N', icon: <PlusIcon className="w-4 h-4" />, run: openAddModal },
     { id: 'a-capture', label: t('capture.button', language), icon: <PasteIcon className="w-4 h-4" />, run: () => setIsCaptureOpen(true) },
+    { id: 'a-document', label: t('docAgent.button', language), icon: <DocumentIcon className="w-4 h-4" />, run: () => setDocAgentFor(null) },
     { id: 'a-theme', label: t('shell.toggleTheme', language), icon: <Moon className="w-4 h-4" />, run: toggleTheme },
     { id: 'a-lang', label: t('shell.toggleLanguage', language), icon: <Languages className="w-4 h-4" />, run: toggleLanguage },
     ...dataItems.filter(d => !d.danger).map((d, i) => ({ id: `a-data-${i}`, label: d.label, icon: <Download className="w-4 h-4" />, run: d.onClick })),
@@ -447,6 +451,7 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
         onOpenPalette={() => setIsPaletteOpen(true)}
         onNewCustomer={openAddModal}
         onCapture={() => setIsCaptureOpen(true)}
+        onReadDocument={() => setDocAgentFor(null)}
         footer={
           <div className="space-y-2 border-t border-border pt-3">
             <div className={sidebarCollapsed ? 'hidden' : 'px-2 flex items-center justify-between'}><span className="text-xs font-medium text-text-secondary">{language === 'zh' ? '資料狀態' : 'Data status'}</span><SyncBadge status={store.status} onRetry={store.retry} language={language} /></div>
@@ -527,6 +532,7 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
                 onAddInteraction={handleAddInteraction}
                 onUpdateInteraction={handleUpdateInteraction}
                 onDeleteInteraction={handleDeleteInteraction}
+                onReadDocument={id => setDocAgentFor(id)}
                 onUpdateCustomer={handleUpdateCustomer}
                 onOpenAddCustomerModal={openAddModal}
                 onEditCustomer={openEditModal}
@@ -583,6 +589,24 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
         language={language}
       />
       <SmartCaptureModal isOpen={isCaptureOpen} onClose={() => setIsCaptureOpen(false)} onExtracted={handleExtracted} language={language} />
+      <DocumentAgentModal
+        isOpen={docAgentFor !== undefined}
+        onClose={() => setDocAgentFor(undefined)}
+        customers={customers}
+        customerId={docAgentFor}
+        language={language}
+        onApply={updated => {
+          const snapshot = customers;
+          setCustomers(prev => prev.map(c => (c.id === updated.id ? updated : c)));
+          setDocAgentFor(undefined);
+          toast(tf('docAgent.applied', language, { name: updated.name }), { actionLabel: t('undo', language), onAction: () => setCustomers(snapshot) });
+          openCustomer(updated.id);
+        }}
+        onCreateCustomer={(prefill, logText) => {
+          setDocAgentFor(undefined);
+          handleExtracted(prefill, logText);
+        }}
+      />
       <CloseReasonModal
         customer={closeTarget}
         status={closePrompt?.status ?? null}

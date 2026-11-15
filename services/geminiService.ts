@@ -3,6 +3,7 @@ const Type = { OBJECT: 'OBJECT', STRING: 'STRING', NUMBER: 'NUMBER', ARRAY: 'ARR
 import { Customer, CustomerStatus, InteractionType, NextAction } from '../types';
 import { todayISO, addDays } from '../lib/dates';
 import { apiFetch, ApiError } from '../lib/api';
+import { DOCUMENT_KINDS, DocumentAnalysis } from '../lib/documentAgent';
 
 // All AI calls go through the server-side proxy at /api/ai, which holds the Gemini key.
 
@@ -282,4 +283,60 @@ export const analyzeClosedDeals = (customers: Customer[], language: Language): P
     [{ role: 'user', text: `Closed deals:\n${closed || 'none'}\n\n${ANALYSIS_PROMPT}` }],
     `You are a sales operations analyst. Use Markdown. Respond in ${languageName(language)}.\n\n${WRITING_RULES}`,
   );
+};
+
+// ---------- Document agent ----------
+
+const MAX_PROMPT_DOC_CHARS = 16000;
+
+export const DOCUMENT_AGENT_INSTRUCTION = (language: Language) => `You are a document agent inside a sales CRM. A sales rep uploaded a business document (quote request, quote, purchase order, contract, invoice or similar). ComPDF has already converted it to text. Today is ${todayISO()}.
+Your job:
+1. Classify the document and give it a short title.
+2. Identify the counterparty (the customer side, not the rep's own company) and match it to one customer from the list by id. Leave matchedCustomerId empty if no customer clearly matches; do not guess.
+3. Pull out the deal amount (number only, no currency symbol) and its ISO currency code if the document states one, and the dates that matter (deadlines, validity, delivery, payment).
+4. Say what the document means for the deal: suggestedStatus only when the document is clear evidence (a quote request means at least "Prospect", a quote or draft contract under discussion means "Negotiation", a signed purchase order or signed contract means "Closed (Won)"); otherwise leave it empty.
+5. Propose one next action with a due date, and list terms the rep should check (payment terms, penalties, auto-renewal, liability, exclusivity), each in a few words.
+Write title, summary, next action and watch items in ${languageName(language)}. Copy names, amounts and dates exactly as written in the document.
+
+${WRITING_RULES}`;
+
+export const analyzeDocument = (
+  text: string,
+  fileName: string,
+  customers: Customer[],
+  language: Language,
+): Promise<DocumentAnalysis> => {
+  const list = customers.slice(0, 200)
+    .map(c => `${c.id} | ${c.name} | ${c.company} | ${c.email || '-'} | ${c.status}${c.dealValue ? ` | ${c.dealCurrency || 'USD'} ${c.dealValue}` : ''}`)
+    .join('\n');
+  const body = text.length > MAX_PROMPT_DOC_CHARS ? `${text.slice(0, MAX_PROMPT_DOC_CHARS)}\n[... document truncated ...]` : text;
+  return generateJson<DocumentAnalysis>(
+    `Customers (id | name | company | email | stage | deal):\n${list || '(none yet)'}\n\nDocument "${fileName}":\n---\n${body}\n---`,
+    DOCUMENT_AGENT_INSTRUCTION(language),
+    {
+      type: Type.OBJECT,
+      properties: {
+        documentType: { type: Type.STRING, enum: [...DOCUMENT_KINDS] },
+        title: { type: Type.STRING },
+        summary: { type: Type.STRING, description: 'One or two sentences: what the document asks for or commits to' },
+        counterpartyName: { type: Type.STRING },
+        counterpartyCompany: { type: Type.STRING },
+        counterpartyEmail: { type: Type.STRING },
+        matchedCustomerId: { type: Type.STRING },
+        amount: { type: Type.NUMBER },
+        currency: { type: Type.STRING, description: 'ISO 4217 code, e.g. USD, TWD' },
+        keyDates: {
+          type: Type.ARRAY,
+          items: { type: Type.OBJECT, properties: { label: { type: Type.STRING }, date: { type: Type.STRING, description: 'YYYY-MM-DD' } }, required: ['label', 'date'] },
+        },
+        suggestedStatus: { type: Type.STRING, enum: ['', CustomerStatus.LEAD, CustomerStatus.PROSPECT, CustomerStatus.NEGOTIATION, CustomerStatus.CLOSED_WON] },
+        nextActionDescription: { type: Type.STRING },
+        nextActionDueDate: { type: Type.STRING, description: 'YYYY-MM-DD' },
+        newPainPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
+        newCompetitors: { type: Type.ARRAY, items: { type: Type.STRING } },
+        watchItems: { type: Type.ARRAY, items: { type: Type.STRING } },
+      },
+      required: ['documentType', 'title', 'summary', 'counterpartyName', 'counterpartyCompany', 'counterpartyEmail', 'matchedCustomerId'],
+    },
+  ).then(a => ({ ...a, documentType: DOCUMENT_KINDS.includes(a.documentType) ? a.documentType : 'other' }));
 };

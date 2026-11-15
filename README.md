@@ -9,6 +9,11 @@
   - 客戶頁顯示與該客戶的往來郵件（收到 / 寄出），可一鍵記錄或「AI 摘要並記錄」（同時建議下一步）
   - AI 草擬的郵件可檢視、修改後直接用 Gmail 寄出，並自動記錄
   - 智慧建檔可直接從最近的 Gmail 收件匣挑選郵件建立客戶
+- **文件代理（ComPDF）**：上傳詢價單、報價單、採購單、合約或發票（PDF／圖片，3 MB 以內）。
+  - ComPDF 先把文件轉成文字（PDF 轉 Markdown，掃描頁自動 OCR；圖片走 OCR）。
+  - AI 判斷文件類型、對應到哪位客戶（Email 完全相符 → AI 判斷 → 公司名稱），整理金額、重要日期與要注意的條款。
+  - 列出建議更新（交易金額、階段只往前、下一步、新痛點與競爭者），逐項勾選後才套用，並記成一筆互動；可復原。
+  - 寄件人不在 CRM 裡時，直接帶入新增客戶表單。
 - **AI 助理**：串流回覆、可停止 / 重試；建議下一步可一鍵套用，回覆可存成備註。
 - **快速記錄**：語音輸入、「AI 整理」把零散筆記整理成互動摘要並建議下一步、新痛點與競爭對手。
 - **客戶管理**：列表 / 看板（觸控裝置可用選單移動階段）、搜尋、篩選、批次操作、刪除可復原、結案時詢問原因。
@@ -26,11 +31,13 @@
  ├─ 客戶資料 → Supabase（Row Level Security：只能存取自己的資料）
  └─ /api/*  → Vercel Functions（server/）
        ├─ /api/ai              Gemini 代理（驗證登入、每日用量上限）
+       ├─ /api/documents/parse ComPDF 文件轉文字（金鑰只在伺服器端）
        ├─ /api/google/connect  儲存 / 查詢 / 中斷 Gmail 授權
        └─ /api/gmail/*         讀取往來郵件、寄信
 ```
 
-- 所有金鑰（Gemini、Google client secret、Supabase service role）只存在伺服器端。
+- 所有金鑰（Gemini、ComPDF、Google client secret、Supabase service role）只存在伺服器端。
+- ComPDF 直接呼叫 ComPDF v2 API（與官方 [ComPDF MCP](https://github.com/ComPDFKit/compdf-mcp) 包裝的是同一組端點），不需另外架設 MCP 服務；設定 `COMPDF_API_KEY` 即可啟用。
 - Google refresh token 存在 `google_tokens` 表，瀏覽器端無任何讀取權限。
 - 未設定 Supabase 時為「本機模式」：不需登入、資料存於瀏覽器，適合試用與開發。
 
