@@ -7,7 +7,8 @@ export type Handler = (req: Req, res: Res) => Promise<void>;
 const MAX_BODY_BYTES = 200_000;
 
 export class HttpError extends Error {
-  constructor(public status: number, public code: string) {
+  /** Optional short, non-secret reason from an upstream service, shown to the user to help fix setup problems. */
+  constructor(public status: number, public code: string, public detail?: string) {
     super(code);
   }
 }
@@ -65,7 +66,7 @@ export const route = (methods: Record<string, Handler>): Handler => async (req, 
       res.end();
       return;
     }
-    if (error instanceof HttpError) return sendJson(res, error.status, { error: error.code });
+    if (error instanceof HttpError) return sendJson(res, error.status, error.detail ? { error: error.code, detail: error.detail } : { error: error.code });
     console.error('[api] unhandled error:', error);
     sendJson(res, 500, { error: 'internal_error' });
   }

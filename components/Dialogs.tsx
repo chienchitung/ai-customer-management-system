@@ -13,8 +13,11 @@ import { toISODate } from '../lib/dates';
 
 type Language = 'en' | 'zh';
 
-export const aiErrorMessage = (error: unknown, language: Language) =>
-  t(`ai.errors.${error instanceof AIError ? error.code : 'upstream_error'}`, language);
+/** The friendly message, plus the upstream reason when there is one (it usually names the setup problem). */
+export const aiErrorMessage = (error: unknown, language: Language) => {
+  const message = t(`ai.errors.${error instanceof AIError ? error.code : 'upstream_error'}`, language);
+  return error instanceof AIError && error.detail ? `${message}（${error.detail}）` : message;
+};
 
 const inputClass = 'input';
 const primaryBtn = 'btn btn-primary';

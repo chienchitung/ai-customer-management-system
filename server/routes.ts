@@ -20,6 +20,19 @@ const EMAIL_RE = /^[^\s@<>,;]+@[^\s@<>,;]+\.[^\s@<>,;]+$/;
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const isRateLimit = (error: any) => /429|resource_exhausted|quota/i.test(String(error?.message || error));
+const isKeyProblem = (error: any) => /API_KEY_INVALID|API key not valid|ACCESS_TOKEN_TYPE_UNSUPPORTED|API_KEY_SERVICE_BLOCKED|PERMISSION_DENIED|UNAUTHENTICATED/i.test(String(error?.message || error));
+
+/** Gemini's own one-line reason (e.g. "API key not valid"), without request details. */
+const geminiReason = (error: any) => {
+  const raw = String(error?.message || error);
+  try {
+    const parsed = JSON.parse(raw.slice(raw.indexOf('{')));
+    const e = parsed.error ?? parsed;
+    return [e.status, String(e.message ?? '').split('\n')[0]].filter(Boolean).join(': ').slice(0, 160);
+  } catch {
+    return raw.split('\n')[0].slice(0, 160);
+  }
+};
 
 export const createRoutes = (config: ServerConfig, fetchImpl: typeof fetch = fetch): Record<string, Handler> => {
   const ai = config.geminiApiKey ? new GoogleGenAI({ apiKey: config.geminiApiKey }) : null;
@@ -68,7 +81,8 @@ export const createRoutes = (config: ServerConfig, fetchImpl: typeof fetch = fet
           continue;
         }
         console.error('[ai] Gemini call failed:', error);
-        throw new HttpError(isRateLimit(error) ? 429 : 502, isRateLimit(error) ? 'rate_limited' : 'upstream_error');
+        if (isKeyProblem(error)) throw new HttpError(502, 'ai_key_invalid', geminiReason(error));
+        throw new HttpError(isRateLimit(error) ? 429 : 502, isRateLimit(error) ? 'rate_limited' : 'upstream_error', geminiReason(error));
       }
     }
   };
