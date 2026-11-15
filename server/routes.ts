@@ -2,7 +2,7 @@ import { GoogleGenAI } from '@google/genai';
 import { Handler, HttpError, readJson, route, sendJson, queryParams } from './http.js';
 import { ServerConfig, configFromEnv } from './config.js';
 import { LOCAL_USER, createAdmin, requireUser } from './supabase.js';
-import { MAX_DOCUMENT_BYTES, DOCUMENT_TYPES, parseDocumentWithComPDF } from './compdf.js';
+import { MAX_DOCUMENT_BYTES, DOCUMENT_TYPES, checkComPDFTask, signTask, startComPDFTask, verifyTask } from './compdf.js';
 import { GMAIL_SCOPES, getMessageText, getProfileEmail, listMessagesWith, listRecentInbox, refreshAccessToken, revokeToken, sendEmail } from './google.js';
 
 // All API routes, shared by Vercel functions (api/) and the Vite dev server.
@@ -153,8 +153,8 @@ export const createRoutes = (config: ServerConfig, fetchImpl: typeof fetch = fet
   });
 
   const documentParse = route({
-    // Turns an uploaded PDF or image into text with ComPDF. The AI analysis runs afterwards
-    // through /api/ai, so the user can review what ComPDF read before anything is changed.
+    // Starts turning an uploaded PDF or image into text with ComPDF and returns a signed task
+    // token; GET polls it. The AI analysis runs afterwards through /api/ai.
     POST: async (req, res) => {
       const userId = await requireUser(req, config, fetchImpl);
       if (!config.compdfApiKey) throw new HttpError(501, 'compdf_not_configured');
@@ -170,7 +170,15 @@ export const createRoutes = (config: ServerConfig, fetchImpl: typeof fetch = fet
       if (userId !== LOCAL_USER && admin.enabled && !(await admin.consumeAiQuota(userId, config.aiDailyLimit))) {
         throw new HttpError(429, 'quota_exceeded');
       }
-      sendJson(res, 200, await parseDocumentWithComPDF(config, { fileName, contentType, bytes }, fetchImpl));
+      const taskId = await startComPDFTask(config, { fileName, contentType, bytes }, fetchImpl);
+      sendJson(res, 200, { task: signTask(config, userId, taskId) });
+    },
+    GET: async (req, res) => {
+      const userId = await requireUser(req, config, fetchImpl);
+      if (!config.compdfApiKey) throw new HttpError(501, 'compdf_not_configured');
+      const taskId = verifyTask(config, userId, queryParams(req).get('task') ?? '');
+      const result = await checkComPDFTask(config, taskId, fetchImpl);
+      sendJson(res, 200, result ? { status: 'done', ...result } : { status: 'processing' });
     },
   });
 

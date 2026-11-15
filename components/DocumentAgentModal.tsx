@@ -4,7 +4,7 @@ import { t, tf, translateStatus } from '../localization';
 import { Customer, CustomerStatus } from '../types';
 import { ApiError } from '../lib/api';
 import { ACCEPTED_DOCUMENTS, MAX_UPLOAD_BYTES, ParsedDocument, documentContentType, parseDocument } from '../lib/documents';
-import { ChangeKey, DocumentAnalysis, applyDocument, documentLogText, matchCustomer, prefillFromDocument, proposeChanges } from '../lib/documentAgent';
+import { ChangeKey, DocumentAnalysis, hasCounterparty, applyDocument, documentLogText, matchCustomer, prefillFromDocument, proposeChanges } from '../lib/documentAgent';
 import { analyzeDocument } from '../services/geminiService';
 import { aiErrorMessage } from './Dialogs';
 import { todayISO } from '../lib/dates';
@@ -14,10 +14,15 @@ type Language = 'en' | 'zh';
 type Step = 'pick' | 'reading' | 'analyzing' | 'review';
 const NEW = '__new__';
 
-const DOC_ERRORS = ['compdf_not_configured', 'compdf_unauthorized', 'compdf_unreadable', 'compdf_failed', 'unsupported_document', 'payload_too_large'];
+const DOC_ERRORS = ['compdf_not_configured', 'compdf_unauthorized', 'compdf_unreadable', 'compdf_failed', 'compdf_timeout', 'unsupported_document', 'payload_too_large'];
+const SHARED_ERRORS = ['quota_exceeded', 'unauthorized', 'network', 'rate_limited'];
 
-const errorText = (e: unknown, language: Language) =>
-  e instanceof ApiError && DOC_ERRORS.includes(e.code) ? t(`docAgent.errors.${e.code}`, language) : aiErrorMessage(e, language);
+/** During the reading step an unknown server error (e.g. a gateway timeout) is a ComPDF problem, not an AI one. */
+const errorText = (e: unknown, language: Language, reading: boolean) => {
+  if (e instanceof ApiError && DOC_ERRORS.includes(e.code)) return t(`docAgent.errors.${e.code}`, language);
+  if (reading && !(e instanceof ApiError && SHARED_ERRORS.includes(e.code))) return t('docAgent.errors.compdf_failed', language);
+  return aiErrorMessage(e, language);
+};
 
 const StepRow: React.FC<{ label: string; state: 'todo' | 'active' | 'done' }> = ({ label, state }) => (
   <li className={`flex items-center gap-2 text-sm ${state === 'todo' ? 'text-text-secondary' : 'text-text-primary'}`}>
@@ -47,10 +52,14 @@ export const DocumentAgentModal: React.FC<{
   const [selected, setSelected] = useState<Set<ChangeKey>>(new Set());
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const [elapsed, setElapsed] = useState(0);
   const today = todayISO();
 
+  // Closing the dialog stops polling ComPDF.
+  useEffect(() => () => abortRef.current?.abort(), []);
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) { abortRef.current?.abort(); return; }
     setStep('pick'); setError(null); setFileName(''); setParsed(null); setAnalysis(null); setSelected(new Set());
   }, [isOpen]);
 
@@ -67,8 +76,14 @@ export const DocumentAgentModal: React.FC<{
     if (file.size > MAX_UPLOAD_BYTES) return setError(t('docAgent.errors.payload_too_large', language));
     setFileName(file.name);
     setStep('reading');
+    setElapsed(0);
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    let reading = true;
     try {
-      const doc = await parseDocument(file);
+      const doc = await parseDocument(file, { signal: controller.signal, onTick: setElapsed });
+      reading = false;
       setParsed(doc);
       setStep('analyzing');
       const a = await analyzeDocument(doc.text, file.name, customers, language);
@@ -77,7 +92,8 @@ export const DocumentAgentModal: React.FC<{
       setTarget(customerId && customers.some(c => c.id === customerId) && !m ? customerId : m?.customerId ?? (customerId || NEW));
       setStep('review');
     } catch (e) {
-      setError(errorText(e, language));
+      if ((e as Error).name === 'AbortError') return;
+      setError(errorText(e, language, reading));
       setStep('pick');
     }
   };
@@ -98,7 +114,7 @@ export const DocumentAgentModal: React.FC<{
   const busy = step === 'reading' || step === 'analyzing';
 
   return (
-    <Modal size="md" isOpen={isOpen} onClose={busy ? () => {} : onClose} title={t('docAgent.title', language)}>
+    <Modal size="md" isOpen={isOpen} onClose={onClose} title={t('docAgent.title', language)}>
       <div className="space-y-4">
         {step === 'pick' && (
           <>
@@ -121,9 +137,10 @@ export const DocumentAgentModal: React.FC<{
           <div className="space-y-3" aria-live="polite">
             <p className="text-sm font-medium truncate">{fileName}</p>
             <ol className="space-y-2">
-              <StepRow label={t('docAgent.stepRead', language)} state={step === 'reading' ? 'active' : 'done'} />
+              <StepRow label={step === 'reading' && elapsed > 0 ? `${t('docAgent.stepRead', language)} · ${tf('docAgent.seconds', language, { n: elapsed })}` : t('docAgent.stepRead', language)} state={step === 'reading' ? 'active' : 'done'} />
               <StepRow label={t('docAgent.stepAnalyze', language)} state={step === 'analyzing' ? 'active' : 'todo'} />
             </ol>
+            {step === 'reading' && elapsed >= 10 && <p className="text-xs text-text-secondary">{t('docAgent.longHint', language)}</p>}
           </div>
         )}
 
@@ -150,8 +167,9 @@ export const DocumentAgentModal: React.FC<{
                 <option value={NEW}>{t('docAgent.newCustomer', language)}</option>
               </select>
               <p className="text-xs text-text-secondary mt-1">
-                {[analysis.counterpartyName, analysis.counterpartyCompany, analysis.counterpartyEmail].filter(Boolean).join(' · ')}
-                {' · '}{t(`docAgent.match.${match?.reason ?? 'none'}`, language)}
+                {hasCounterparty(analysis)
+                  ? <>{[analysis.counterpartyName, analysis.counterpartyCompany, analysis.counterpartyEmail].filter(Boolean).join(' · ')} · {t(`docAgent.match.${match?.reason ?? 'none'}`, language)}</>
+                  : t('docAgent.noCounterparty', language)}
               </p>
             </div>
 
@@ -207,9 +225,9 @@ export const DocumentAgentModal: React.FC<{
 
         <div className="flex justify-end gap-2 flex-wrap">
           {step === 'review' && <button type="button" onClick={() => setStep('pick')} className="btn btn-ghost mr-auto">{t('docAgent.pick', language)}</button>}
-          <button type="button" onClick={onClose} disabled={busy} className="btn btn-secondary">{t('modal.cancel', language)}</button>
+          <button type="button" onClick={onClose} className="btn btn-secondary">{t('modal.cancel', language)}</button>
           {step === 'review' && (
-            <button type="button" onClick={apply} className="btn btn-primary">
+            <button type="button" onClick={apply} disabled={!customer && !!analysis && !hasCounterparty(analysis)} className="btn btn-primary">
               {t(customer ? 'docAgent.apply' : 'docAgent.createCustomer', language)}
             </button>
           )}

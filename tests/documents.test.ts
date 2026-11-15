@@ -3,78 +3,99 @@ import { Readable } from 'stream';
 import { createRoutes } from '../server/routes';
 import { configFromEnv } from '../server/config';
 import { Customer, CustomerStatus, InteractionType } from '../types';
-import { DocumentAnalysis, applyDocument, documentLogText, matchCustomer, prefillFromDocument, proposeChanges } from '../lib/documentAgent';
+import { DocumentAnalysis, cleanAnalysis, hasCounterparty, applyDocument, documentLogText, matchCustomer, prefillFromDocument, proposeChanges } from '../lib/documentAgent';
 
 // ---------- /api/documents/parse against a fake ComPDF ----------
 
 const env = { VITE_SUPABASE_URL: 'https://x.supabase.co', VITE_SUPABASE_ANON_KEY: 'anon', SUPABASE_SERVICE_ROLE_KEY: 'svc', VERCEL: '1' };
 
 type Seen = { url: string; headers: Record<string, string>; form?: FormData }[];
-const fakeFetch = (seen: Seen, opts: { compdf?: unknown; download?: string; quota?: number } = {}) => {
+const fakeFetch = (seen: Seen, opts: { submit?: unknown; info?: unknown[]; download?: string; quota?: number } = {}) => {
   let quota = opts.quota ?? 5;
+  let polls = 0;
+  const finished = { code: '200', msg: 'success', data: { taskId: 't-1', taskStatus: 'TaskFinish', taskFailNum: 0, errorCode: null, fileInfoDTOList: [{ downloadUrl: 'https://files.compdf.com/out.md', status: 'success' }] } };
+  const infos = opts.info ?? [{ code: '200', data: { taskId: 't-1', taskStatus: 'TaskProcessing', taskFailNum: 0, fileInfoDTOList: [{}] } }, finished];
   return (async (input: any, init: any = {}) => {
     const url = String(input);
     const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { 'Content-Type': 'application/json' } });
-    if (url.endsWith('/auth/v1/user')) return init.headers.Authorization === 'Bearer good' ? json({ id: 'user-1' }) : json({}, 401);
+    if (url.endsWith('/auth/v1/user')) {
+      const auth = init.headers.Authorization;
+      return auth === 'Bearer good' ? json({ id: 'user-1' }) : auth === 'Bearer other' ? json({ id: 'user-2' }) : json({}, 401);
+    }
     if (url.includes('/rpc/consume_ai_quota')) return json(--quota >= 0);
     if (url.startsWith('https://api-server.compdf.com/server/')) {
       seen.push({ url, headers: init.headers, form: init.body });
-      return json(opts.compdf ?? { code: '200', msg: 'success', data: { taskId: 't-1', downloadUrl: 'https://files.compdf.com/out.md', status: 'TaskFinish', convertSize: 2 } });
+      if (url.includes('/v2/task/taskInfo')) return json(infos[Math.min(polls++, infos.length - 1)]);
+      return json(opts.submit ?? { code: '200', msg: 'success', data: { taskId: 't-1abcdefg' } });
     }
     if (url === 'https://files.compdf.com/out.md') return new Response(opts.download ?? '# Purchase Order\n\nTotal: USD 48,000');
     return json({ error: 'unexpected ' + url }, 500);
   }) as typeof fetch;
 };
 
-const call = async (routes: any, body: unknown, token = 'good') => {
-  const req: any = Readable.from([Buffer.from(JSON.stringify(body))]);
-  req.method = 'POST'; req.url = '/api/documents/parse'; req.headers = { authorization: `Bearer ${token}` };
+const call = async (routes: any, body: unknown, token = 'good', query?: string) => {
+  const req: any = Readable.from(body === undefined ? [] : [Buffer.from(JSON.stringify(body))]);
+  req.method = body === undefined ? 'GET' : 'POST'; req.url = '/api/documents/parse' + (query ?? ''); req.headers = { authorization: `Bearer ${token}` };
   let status = 0; let out = '';
   const res: any = { headersSent: false, statusCode: 200, setHeader() {}, write(c: string) { out += c; }, end(c?: string) { if (c) out += c; status = this.statusCode; } };
   await routes['/api/documents/parse'](req, res);
   return { status, body: JSON.parse(out) };
 };
+const poll = (routes: any, task: string, token = 'good') => call(routes, undefined, token, `?task=${encodeURIComponent(task)}`);
 
 const pdf = { fileName: 'po.pdf', contentType: 'application/pdf', dataBase64: Buffer.from('%PDF-1.7 test').toString('base64') };
+const withKey = (seen: Seen, opts?: Parameters<typeof fakeFetch>[1]) => createRoutes(configFromEnv({ ...env, COMPDF_API_KEY: 'ck' }), fakeFetch(seen, opts));
 
 describe('/api/documents/parse', () => {
-  it('sends the PDF to ComPDF pdf-to-markdown with OCR and returns the text', async () => {
+  it('starts an async ComPDF pdf-to-markdown task with OCR, then polls until the text is ready', async () => {
     const seen: Seen = [];
-    const routes = createRoutes(configFromEnv({ ...env, COMPDF_API_KEY: 'ck' }), fakeFetch(seen));
-    const r = await call(routes, pdf);
-    expect(r).toEqual({ status: 200, body: { text: '# Purchase Order\n\nTotal: USD 48,000', truncated: false, pages: null, taskId: 't-1' } });
-    expect(seen[0].url).toBe('https://api-server.compdf.com/server/v2/process/pdf/markdown');
+    const routes = withKey(seen);
+    const start = await call(routes, pdf);
+    expect(start.status).toBe(200);
+    expect(start.body.task).toMatch(/^t-1abcdefg\.[\w-]+$/);
+    expect(seen[0].url).toBe('https://api-server.compdf.com/server/v2/processAsync/pdf/markdown');
     expect(seen[0].headers['x-api-key']).toBe('ck');
     expect(seen[0].form?.get('enableOcr')).toBe('1');
     expect(seen[0].form?.get('pageRanges')).toBe('1-15');
     expect((seen[0].form?.get('file') as File).name).toBe('po.pdf');
+    expect((await poll(routes, start.body.task)).body).toEqual({ status: 'processing' });
+    expect(seen[1].url).toContain('/v2/task/taskInfo?taskId=t-1abcdefg');
+    expect((await poll(routes, start.body.task)).body).toEqual({ status: 'done', text: '# Purchase Order\n\nTotal: USD 48,000', truncated: false, pages: null, taskId: 't-1abcdefg' });
   });
 
   it('uses image-to-text for images', async () => {
     const seen: Seen = [];
-    const routes = createRoutes(configFromEnv({ ...env, COMPDF_API_KEY: 'ck' }), fakeFetch(seen));
-    await call(routes, { ...pdf, fileName: 'card.png', contentType: 'image/png' });
-    expect(seen[0].url).toBe('https://api-server.compdf.com/server/v2/process/img/txt');
+    await call(withKey(seen), { ...pdf, fileName: 'card.png', contentType: 'image/png' });
+    expect(seen[0].url).toBe('https://api-server.compdf.com/server/v2/processAsync/img/txt');
+  });
+
+  it("does not let one user read another user's task, or a forged token", async () => {
+    const seen: Seen = [];
+    const routes = withKey(seen);
+    const { body } = await call(routes, pdf);
+    expect((await poll(routes, body.task, 'other')).body.error).toBe('forbidden');
+    expect((await poll(routes, 't-1abcdefg.forged')).body.error).toBe('forbidden');
+    expect((await poll(routes, 'no-dot')).body.error).toBe('bad_request');
+    expect(seen.filter(s => s.url.includes('taskInfo'))).toHaveLength(0);
   });
 
   it('reports a missing key, bad types, oversize files, auth and quota', async () => {
     const seen: Seen = [];
     expect((await call(createRoutes(configFromEnv(env), fakeFetch(seen)), pdf)).body.error).toBe('compdf_not_configured');
-    const routes = createRoutes(configFromEnv({ ...env, COMPDF_API_KEY: 'ck' }), fakeFetch(seen));
+    const routes = withKey(seen);
     expect((await call(routes, { ...pdf, contentType: 'text/html' })).body.error).toBe('unsupported_document');
     expect((await call(routes, { ...pdf, dataBase64: Buffer.alloc(3 * 1024 * 1024 + 1).toString('base64') })).body.error).toBe('payload_too_large');
     expect((await call(routes, pdf, 'bad')).status).toBe(401);
-    const noQuota = createRoutes(configFromEnv({ ...env, COMPDF_API_KEY: 'ck' }), fakeFetch(seen, { quota: 0 }));
-    expect((await call(noQuota, pdf)).body.error).toBe('quota_exceeded');
+    expect((await call(withKey(seen, { quota: 0 }), pdf)).body.error).toBe('quota_exceeded');
     expect(seen).toHaveLength(0); // nothing reached ComPDF
   });
 
-  it('maps ComPDF failures to readable codes', async () => {
+  it('maps failed tasks and key errors to readable codes', async () => {
     const seen: Seen = [];
-    const failed = createRoutes(configFromEnv({ ...env, COMPDF_API_KEY: 'ck' }), fakeFetch(seen, { compdf: { code: '200', data: { taskId: 't', failureCode: 'E1', failureReason: 'damaged file' } } }));
-    expect((await call(failed, pdf)).body.error).toBe('compdf_unreadable');
-    const badKey = createRoutes(configFromEnv({ ...env, COMPDF_API_KEY: 'ck' }), fakeFetch(seen, { compdf: { code: '401', msg: 'Invalid API key' } }));
-    expect((await call(badKey, pdf)).body.error).toBe('compdf_unauthorized');
+    const failed = withKey(seen, { info: [{ code: '200', data: { taskId: 't', taskStatus: 'TaskFail', taskFailNum: 1, errorCode: 'E1', errorMessage: 'damaged file', fileInfoDTOList: [{}] } }] });
+    const { body } = await call(failed, pdf);
+    expect((await poll(failed, body.task)).body.error).toBe('compdf_unreadable');
+    expect((await call(withKey(seen, { submit: { code: '401', msg: 'Invalid API key' } }), pdf)).body.error).toBe('compdf_unauthorized');
   });
 
   it('treats the real ComPDF key errors as a key problem, and trims the configured key', async () => {
@@ -84,7 +105,7 @@ describe('/api/documents/parse', () => {
     const emptyForbidden = (async (input: any, init: any) => String(input).includes('api-server.compdf.com') ? new Response('', { status: 403 }) : base(input, init)) as typeof fetch;
     expect((await call(routesFor(emptyForbidden), pdf)).body.error).toBe('compdf_unauthorized');
     const seen: Seen = [];
-    const unknownUser = routesFor(fakeFetch(seen, { compdf: { code: '01001', msg: '未知用户类型！', data: null } }));
+    const unknownUser = routesFor(fakeFetch(seen, { submit: { code: '01001', msg: '未知用户类型！', data: null } }));
     expect((await call(unknownUser, pdf)).body.error).toBe('compdf_unauthorized');
     expect(seen[0].headers['x-api-key']).toBe('ck');
   });
@@ -157,5 +178,16 @@ describe('proposeChanges / applyDocument', () => {
       name: 'Amy Lin', company: 'ACME Co Ltd', email: 'new@x.com', dealValue: 48000, dealCurrency: 'USD',
       nextAction: { description: 'Send contract for signature', dueDate: '2026-11-18' },
     });
+  });
+});
+
+describe('cleanAnalysis', () => {
+  it('blanks placeholders the model writes for unknown fields', () => {
+    const paper = cleanAnalysis({ ...po, documentType: 'other', counterpartyName: '不適用', counterpartyCompany: 'N/A', counterpartyEmail: ' n/a ', matchedCustomerId: 'none', watchItems: ['無', 'Net 60'], newPainPoints: ['-'] });
+    expect([paper.counterpartyName, paper.counterpartyCompany, paper.counterpartyEmail, paper.matchedCustomerId]).toEqual(['', '', '', '']);
+    expect(paper.watchItems).toEqual(['Net 60']);
+    expect(paper.newPainPoints).toEqual([]);
+    expect(hasCounterparty(paper)).toBe(false);
+    expect(hasCounterparty(cleanAnalysis(po))).toBe(true);
   });
 });

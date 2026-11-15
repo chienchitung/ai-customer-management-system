@@ -3,7 +3,7 @@ const Type = { OBJECT: 'OBJECT', STRING: 'STRING', NUMBER: 'NUMBER', ARRAY: 'ARR
 import { Customer, CustomerStatus, InteractionType, NextAction } from '../types';
 import { todayISO, addDays } from '../lib/dates';
 import { apiFetch, ApiError } from '../lib/api';
-import { DOCUMENT_KINDS, DocumentAnalysis } from '../lib/documentAgent';
+import { DOCUMENT_KINDS, DocumentAnalysis, cleanAnalysis } from '../lib/documentAgent';
 
 // All AI calls go through the server-side proxy at /api/ai, which holds the Gemini key.
 
@@ -296,7 +296,7 @@ Your job:
 3. Pull out the deal amount (number only, no currency symbol) and its ISO currency code if the document states one, and the dates that matter (deadlines, validity, delivery, payment).
 4. Say what the document means for the deal: suggestedStatus only when the document is clear evidence (a quote request means at least "Prospect", a quote or draft contract under discussion means "Negotiation", "Closed (Won)" only when the document shows it is already signed or accepted by the customer, such as signatures, a company stamp or an acceptance statement. A purchase order or contract that still needs signatures means "Negotiation", and signing it should be the next action); otherwise omit it.
 5. Propose one next action with a due date, and list terms the rep should check (payment terms, penalties, auto-renewal, liability, exclusivity), each in a few words.
-Write title, summary, next action and watch items in ${languageName(language)}. Copy names, amounts and dates exactly as written in the document.
+Write title, summary, next action and watch items in ${languageName(language)}. Copy names, amounts and dates exactly as written in the document. Leave a field empty when the document does not say; never write placeholders such as "N/A" or "不適用". If the document is not a business document with a customer (for example a research paper), say so in the summary and leave the counterparty fields empty.
 
 ${WRITING_RULES}`;
 
@@ -339,5 +339,5 @@ export const analyzeDocument = (
       },
       required: ['documentType', 'title', 'summary', 'counterpartyName', 'counterpartyCompany', 'counterpartyEmail', 'matchedCustomerId'],
     },
-  ).then(a => ({ ...a, documentType: DOCUMENT_KINDS.includes(a.documentType) ? a.documentType : 'other' }));
+  ).then(a => cleanAnalysis({ ...a, documentType: DOCUMENT_KINDS.includes(a.documentType) ? a.documentType : 'other' }));
 };
