@@ -22,6 +22,10 @@
   --chart-neutral: 96 112 104;
   --chart-amber: 180 121 34;
   --chart-red: 190 73 73;
+  /* Categorical series for charts, validated (light surface): blue, orange, aqua. */
+  --viz-1: 42 120 214;
+  --viz-2: 235 104 52;
+  --viz-3: 27 175 122;
   --color-on-primary: 255 255 255;
   color-scheme: light;
 }
@@ -41,6 +45,10 @@ html.dark {
   --chart-neutral: 164 184 173;
   --chart-amber: 230 180 90;
   --chart-red: 240 132 132;
+  /* Same hues stepped for the dark surface. */
+  --viz-1: 57 135 229;
+  --viz-2: 217 89 38;
+  --viz-3: 25 158 112;
   color-scheme: dark;
 }
 
@@ -88,6 +96,9 @@ body { margin: 0; background: rgb(var(--color-background)); }
 .chart-neutral { background-color: rgb(var(--chart-neutral)); }
 .chart-amber { background-color: rgb(var(--chart-amber)); }
 .chart-red { background-color: rgb(var(--chart-red)); }
+.viz-1 { background-color: rgb(var(--viz-1)); }
+.viz-2 { background-color: rgb(var(--viz-2)); }
+.viz-3 { background-color: rgb(var(--viz-3)); }
 
 .metric-card { position: relative; overflow: hidden; }
 

@@ -100,6 +100,7 @@ export const WRITING_RULES = `Writing rules (follow them in every language):
 - Start with the answer or the content. No opener such as "Great question", "Certainly", "Here is", "好的", "以下是", "當然".
 - No closing pleasantries or offers, such as "I hope this helps", "Let me know if you need anything else", "希望對您有幫助", "如有任何問題歡迎隨時告知".
 - Do not restate the question or recap what you just said. No moral or slogan at the end.
+- No intro paragraph that previews what follows, and no closing paragraph that repeats it ("In summary", "總結來說", "綜上所述").
 - Avoid filler and marketing words: delve, leverage, seamless, robust, crucial, pivotal, game-changer, unlock, elevate, 賦能, 助力, 無縫, 全方位, 打造, 至關重要, 不可或缺.
 - Do not group things in threes by habit; list as many items as the facts support.
 - No "not just X, but Y" or "不只是…更是…" contrast frames.
@@ -262,13 +263,23 @@ ${notes}`,
 
 // ---------- Analytics ----------
 
+// Output shape for the closed-deal analysis. It is shown inside a small dashboard panel,
+// so the structure rules matter as much as the wording rules.
+export const ANALYSIS_PROMPT = `Find the recurring patterns behind these wins and losses.
+Format (Markdown):
+- First line: the single most useful finding, as a plain sentence. No heading above it.
+- Then a short bullet list of patterns. Each bullet states the pattern and names the deals it comes from in parentheses. Do not start bullets with a bold label and a colon (no "**Price:** ...").
+- Then up to 3 recommendations as bullets, each starting with a verb and tied to a pattern above.
+- No closing summary.
+If there are fewer than 3 closed deals, or no pattern repeats, say that in one sentence and stop. Do not invent patterns from a single deal. Keep it under 150 words.`;
+
 export const analyzeClosedDeals = (customers: Customer[], language: Language): Promise<string> => {
   const closed = customers
     .filter(c => c.status === CustomerStatus.CLOSED_WON || c.status === CustomerStatus.CLOSED_LOST)
     .map(c => `- ${c.status} | ${c.company} | $${c.dealValue ?? 0} | reason: ${c.closedReason || 'n/a'} | competitors: ${c.competitors?.join(', ') || 'n/a'}`)
     .join('\n');
   return generateText(
-    [{ role: 'user', text: `Closed deals:\n${closed || 'none'}\n\nIdentify the recurring patterns behind wins and losses, citing the deals they come from, and give up to 3 concrete recommendations for the sales team. If there are too few deals to see a pattern, say so. Keep it under 150 words.` }],
+    [{ role: 'user', text: `Closed deals:\n${closed || 'none'}\n\n${ANALYSIS_PROMPT}` }],
     `You are a sales operations analyst. Use Markdown. Respond in ${languageName(language)}.\n\n${WRITING_RULES}`,
   );
 };

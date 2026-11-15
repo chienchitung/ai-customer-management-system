@@ -74,11 +74,11 @@ const translations = {
         performanceDashboard: 'Performance Dashboard',
         totalCustomers: 'Total Customers',
         totalCustomersDesc: 'All customers in the system.',
-        pipelineValue: 'Total Pipeline Value',
+        pipelineValue: 'Total pipeline value',
         pipelineValueDesc: 'Sum of deal values for all open deals.',
         avgDealValue: 'Average Deal Value',
         avgDealValueDesc: 'Average value across all deals.',
-        salesFunnel: 'Sales Funnel',
+        salesFunnel: 'Sales funnel',
         nextAction: 'Next Action',
         dueDate: 'Due Date',
         noNextAction: 'No next action set.',
@@ -162,10 +162,10 @@ const translations = {
         undo: 'Undo', deleted: 'Customer deleted.', deleteCustomer: 'Delete customer', confirmDeleteOne: 'Delete {name}? This cannot be undone.',
         lastContactAgo: '{n}d ago',
         dash: {
-            weightedForecast: 'Weighted Forecast', weightedForecastDesc: 'Open pipeline × stage win probability.',
-            winRate: 'Win Rate', winRateDesc: 'Won ÷ (won + lost).', wonValue: 'Won Revenue', wonValueDesc: 'Total value of won deals.',
-            conversion: 'Stage Conversion', avgDays: 'Avg. days in stage', activity: 'Weekly Activity (last 8 weeks)',
-            closedReasons: 'Win / Loss Reasons', noReasons: 'No reasons recorded yet.', aiAnalyze: 'AI: find patterns', analyzing: 'Analyzing...', noData: 'Not enough data',
+            weightedForecast: 'Weighted forecast', weightedForecastDesc: 'Open pipeline × stage win probability.',
+            winRate: 'Win rate', winRateDesc: 'Won ÷ (won + lost).', wonValue: 'Won revenue', wonValueDesc: 'Total value of won deals.',
+            conversion: 'Stage conversion', stage: 'Stage', rate: 'Rate', avgDays: 'Avg. days in stage', activity: 'Weekly activity (last 8 weeks)', weekOf: 'Week of', total: 'Total', showTable: 'Table', showChart: 'Chart', latest: 'this week',
+            closedReasons: 'Win / loss reasons', noReasons: 'No reasons recorded yet.', aiAnalyze: 'AI: find patterns', analyzing: 'Analyzing...', noData: 'Not enough data',
         },
 
         auth: {
@@ -378,7 +378,7 @@ const translations = {
         dash: {
             weightedForecast: '加權預測營收', weightedForecastDesc: '進行中金額 × 各階段成交機率。',
             winRate: '成交率', winRateDesc: '成交 ÷（成交 + 流失）。', wonValue: '已成交金額', wonValueDesc: '所有成交案件的金額總和。',
-            conversion: '階段轉換率', avgDays: '平均停留天數', activity: '每週活動量（近 8 週）',
+            conversion: '階段轉換率', stage: '階段', rate: '轉換率', avgDays: '平均停留天數', activity: '每週活動量（近 8 週）', weekOf: '週起始日', total: '合計', showTable: '表格', showChart: '圖表', latest: '本週',
             closedReasons: '成交 / 流失原因', noReasons: '尚未記錄任何原因。', aiAnalyze: 'AI 找出規律', analyzing: '分析中...', noData: '資料不足',
         },
 
