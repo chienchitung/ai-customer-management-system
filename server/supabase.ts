@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'crypto';
 import { HttpError, Req, bearerToken } from './http.js';
 import { ServerConfig } from './config.js';
 
@@ -5,6 +6,13 @@ import { ServerConfig } from './config.js';
 // reading/writing server-only tables with the service role key.
 
 export const LOCAL_USER = 'local';
+/** Everyone who unlocked the API with APP_ACCESS_CODE shares this identity (and its daily limit). */
+export const ACCESS_CODE_USER = 'access-code';
+
+const sameText = (a: string, b: string) => {
+  const x = Buffer.from(a); const y = Buffer.from(b);
+  return x.length === y.length && timingSafeEqual(x, y);
+};
 
 const userCache = new Map<string, { id: string; expires: number }>();
 
@@ -12,6 +20,14 @@ const userCache = new Map<string, { id: string; expires: number }>();
 export const requireUser = async (req: Req, config: ServerConfig, fetchImpl: typeof fetch = fetch): Promise<string> => {
   if (!config.supabaseUrl || !config.supabaseAnonKey) {
     if (config.allowLocalMode) return LOCAL_USER;
+    // Without Supabase there is no login; a shared access code keeps strangers from spending the
+    // Gemini and ComPDF keys behind this public URL.
+    if (config.appAccessCode) {
+      const given = String(req.headers['x-access-code'] ?? '').trim();
+      if (!given) throw new HttpError(401, 'access_code_required');
+      if (!sameText(given, config.appAccessCode)) throw new HttpError(401, 'access_code_invalid');
+      return ACCESS_CODE_USER;
+    }
     throw new HttpError(500, 'server_misconfigured');
   }
   const token = bearerToken(req);

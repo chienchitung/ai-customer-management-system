@@ -15,7 +15,7 @@ type Step = 'pick' | 'reading' | 'analyzing' | 'review';
 const NEW = '__new__';
 
 const DOC_ERRORS = ['compdf_not_configured', 'compdf_unauthorized', 'compdf_unreadable', 'compdf_failed', 'compdf_timeout', 'unsupported_document', 'payload_too_large'];
-const SHARED_ERRORS = ['quota_exceeded', 'unauthorized', 'network', 'rate_limited'];
+const SHARED_ERRORS = ['quota_exceeded', 'unauthorized', 'network', 'rate_limited', 'server_misconfigured', 'access_code_required', 'access_code_invalid'];
 
 /** During the reading step an unknown server error (e.g. a gateway timeout) is a ComPDF problem, not an AI one. */
 const errorText = (e: unknown, language: Language, reading: boolean) => {

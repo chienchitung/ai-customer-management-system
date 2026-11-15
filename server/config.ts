@@ -6,6 +6,8 @@ export interface ServerConfig {
   googleClientId?: string;
   googleClientSecret?: string;
   compdfApiKey?: string;
+  /** Shared code that unlocks the API when Supabase login is not set up (e.g. a public demo). */
+  appAccessCode?: string;
   compdfBaseUrl: string;
   aiDailyLimit: number;
   /** When Supabase isn't configured outside production, requests run as a single local user. */
@@ -24,6 +26,7 @@ export const configFromEnv = (env: Record<string, string | undefined>): ServerCo
   googleClientId: env.GOOGLE_CLIENT_ID || undefined,
   googleClientSecret: env.GOOGLE_CLIENT_SECRET || undefined,
   compdfApiKey: cleanKey(env.COMPDF_API_KEY),
+  appAccessCode: cleanKey(env.APP_ACCESS_CODE),
   compdfBaseUrl: (env.COMPDF_API_BASE_URL || 'https://api-server.compdf.com/server').replace(/\/+$/, ''),
   aiDailyLimit: Number(env.AI_DAILY_LIMIT) > 0 ? Number(env.AI_DAILY_LIMIT) : 300,
   allowLocalMode: !env.VERCEL && env.NODE_ENV !== 'production',

@@ -14,9 +14,9 @@ export interface ChatTurn {
   text: string;
 }
 
-export type AIErrorCode = 'rate_limited' | 'quota_exceeded' | 'unauthorized' | 'missing_api_key' | 'ai_key_invalid' | 'network' | 'upstream_error' | 'bad_response';
+export type AIErrorCode = 'rate_limited' | 'quota_exceeded' | 'unauthorized' | 'missing_api_key' | 'ai_key_invalid' | 'server_misconfigured' | 'access_code_required' | 'access_code_invalid' | 'network' | 'upstream_error' | 'bad_response';
 
-const KNOWN_CODES: AIErrorCode[] = ['rate_limited', 'quota_exceeded', 'unauthorized', 'missing_api_key', 'ai_key_invalid', 'network', 'bad_response'];
+const KNOWN_CODES: AIErrorCode[] = ['rate_limited', 'quota_exceeded', 'unauthorized', 'missing_api_key', 'ai_key_invalid', 'server_misconfigured', 'access_code_required', 'access_code_invalid', 'network', 'bad_response'];
 
 export class AIError extends Error {
   constructor(public code: AIErrorCode, public detail?: string) {

@@ -135,6 +135,9 @@ const translations = {
                 quota_exceeded: 'You have reached today\'s AI usage limit. It resets tomorrow.',
                 unauthorized: 'Your session has expired. Please sign in again.',
                 missing_api_key: 'AI is not configured: set GEMINI_API_KEY on the server.',
+                access_code_required: 'An access code is needed to use AI on this site.',
+                access_code_invalid: 'The access code is not correct.',
+                server_misconfigured: 'This deployment has no Supabase login or access code, so AI and document reading are off. In Vercel, set APP_ACCESS_CODE (quick) or the three Supabase variables, then redeploy.',
                 ai_key_invalid: 'Gemini rejected the API key. Check GEMINI_API_KEY in the server settings (no quotes or spaces), then redeploy.',
                 network: 'Network error. Check your connection and retry.',
                 upstream_error: 'The AI service returned an error. Please retry.',
@@ -147,6 +150,10 @@ const translations = {
             help: 'Paste an email, signature, business card or meeting notes. AI will pre-fill the customer form for you to review.',
             placeholder: 'e.g. "Hi, I\'m Amy Lin, Procurement Manager at Acme Ltd (amy@acme.com). We are looking to replace our spreadsheet process..."',
             extract: 'Extract with AI', extracting: 'Extracting...',
+        },
+        accessCode: {
+            title: 'Enter the access code', help: 'This site needs an access code before it can use AI and document reading. Ask the site owner for it. This browser will remember it.',
+            label: 'Access code', submit: 'Continue', invalid: 'That code is not correct. Please try again.',
         },
         docAgent: {
             button: 'Read a document', title: 'Read a document',
@@ -372,6 +379,9 @@ const translations = {
                 quota_exceeded: '已達今日 AI 使用上限，明天會自動重置。',
                 unauthorized: '登入已過期，請重新登入。',
                 missing_api_key: '尚未設定 AI：請在伺服器設定 GEMINI_API_KEY。',
+                access_code_required: '需要存取碼才能在這個網站使用 AI。',
+                access_code_invalid: '存取碼不正確。',
+                server_misconfigured: '這個部署沒有設定 Supabase 登入或存取碼，AI 與文件讀取都無法使用。請在 Vercel 設定 APP_ACCESS_CODE（最快），或 Supabase 的三個變數，再重新部署。',
                 ai_key_invalid: 'Gemini 不接受這組 API key。請檢查伺服器上的 GEMINI_API_KEY（不要有引號或空白），再重新部署。',
                 network: '網路錯誤，請檢查連線後重試。',
                 upstream_error: 'AI 服務發生錯誤，請重試。',
@@ -384,6 +394,10 @@ const translations = {
             help: '貼上郵件、簽名檔、名片文字或會議筆記，AI 會自動預填客戶表單，確認後即可儲存。',
             placeholder: '例如：「您好，我是 Acme 公司採購經理林小美 (amy@acme.com)，我們想汰換目前用 Excel 管理的流程……」',
             extract: 'AI 擷取', extracting: '擷取中...',
+        },
+        accessCode: {
+            title: '輸入存取碼', help: '這個網站需要存取碼才能使用 AI 與文件讀取，請向網站擁有者索取。這台瀏覽器會記住，之後不用再輸入。',
+            label: '存取碼', submit: '繼續', invalid: '存取碼不正確，請再試一次。',
         },
         docAgent: {
             button: '讀取文件', title: '讀取文件',

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { CloseIcon } from './icons';
 
@@ -13,10 +13,16 @@ interface ModalProps {
 const SIZES = { sm: 'max-w-md', md: 'max-w-xl', lg: 'max-w-3xl' };
 
 const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, size = 'lg' }) => {
-  // Close on Escape.
+  const dialogRef = useRef<HTMLDivElement>(null);
+  // Close on Escape, but only the topmost dialog when one opens over another.
   useEffect(() => {
     if (!isOpen) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      const open = document.querySelectorAll('[role=dialog][aria-modal=true]');
+      if (open.length && open[open.length - 1] !== dialogRef.current) return;
+      onClose();
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [isOpen, onClose]);
@@ -30,6 +36,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, size = 
       onClick={onClose} // Close modal on overlay click.
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label={title}
