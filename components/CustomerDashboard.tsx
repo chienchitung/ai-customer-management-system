@@ -19,7 +19,7 @@ import { formatDate, friendlyDate } from '../lib/format';
 import { organizeMeetingNotes, OrganizedNotes } from '../services/geminiService';
 import { daysBetween, todayISO, addDays } from '../lib/dates';
 import { isOpen, STALE_DAYS } from '../lib/insights';
-import { PlusIcon, ArrowLeftIcon, CalendarIcon, IdentificationIcon, LightBulbIcon, PencilIcon, SearchIcon, FilterIcon, SparklesIcon, MicrophoneIcon, TrashIcon, CheckIcon, PasteIcon, DocumentIcon } from './icons';
+import { PlusIcon, ArrowLeftIcon, CalendarIcon, IdentificationIcon, LightBulbIcon, PencilIcon, SearchIcon, FilterIcon, SparklesIcon, MicrophoneIcon, TrashIcon, CheckIcon, PasteIcon, DocumentIcon, CloseIcon } from './icons';
 
 // Mapping customer statuses to specific Tailwind CSS classes for color-coding.
 export const statusColors: { [key in CustomerStatus]: { text: string; bg: string; border: string; dropdown: string } } = {
@@ -43,6 +43,7 @@ interface CustomerDashboardProps {
   onEditCustomer: (customer: Customer) => void;
   language: 'en' | 'zh';
   isAIAssistantOpen: boolean;
+  onCloseAIAssistant: () => void;
   onSetNextAction: (customerId: string, action: NextAction | undefined) => void;
   onSnooze: (customerId: string, days: number) => void;
   onCompleteAction: (customerId: string) => void;
@@ -85,6 +86,7 @@ const ListView: React.FC<CustomerDashboardProps> = ({
   onEditCustomer,
   language,
   isAIAssistantOpen,
+  onCloseAIAssistant,
   onSetNextAction,
   onSnooze,
   onCompleteAction,
@@ -106,13 +108,23 @@ const ListView: React.FC<CustomerDashboardProps> = ({
     }, [customers]);
     const today = todayISO();
     const confirm = useConfirm();
-    // Side-by-side AI column needs ~1440px (sidebar + list + details + AI); otherwise it stacks in the details.
+    // Side-by-side AI column needs ~1440px (sidebar + list + details + AI). Between 1024 and 1440px
+    // (common on laptops with display scaling) it slides over the details from the right; below that
+    // it stacks under the details.
     const isLargeScreen = useMediaQuery('(min-width: 1440px)');
+    const isDesktop = useMediaQuery('(min-width: 1024px)');
+    const aiMode: 'column' | 'drawer' | 'stacked' = isLargeScreen ? 'column' : isDesktop ? 'drawer' : 'stacked';
     const stackedAIRef = useRef<HTMLDivElement>(null);
     // When the assistant opens below the details, bring it into view.
     useEffect(() => {
-        if (isAIAssistantOpen && !isLargeScreen) stackedAIRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, [isAIAssistantOpen, isLargeScreen]);
+        if (isAIAssistantOpen && aiMode === 'stacked') stackedAIRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, [isAIAssistantOpen, aiMode]);
+    useEffect(() => {
+        if (!isAIAssistantOpen || aiMode !== 'drawer') return;
+        const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !document.querySelector('[role=dialog][aria-modal=true]')) onCloseAIAssistant(); };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [isAIAssistantOpen, aiMode, onCloseAIAssistant]);
     const [searchQuery, setSearchQuery] = useState('');
     const [sortBy, setSortBy] = useState<SortKey>(() => {
         try { const v = localStorage.getItem(SORT_KEY); return (SORT_KEYS as readonly string[]).includes(v ?? '') ? v as SortKey : 'default'; } catch { return 'default'; }
@@ -373,14 +385,25 @@ const ListView: React.FC<CustomerDashboardProps> = ({
                             }}
                             language={language}
                         />
-                        {!isLargeScreen && isAIAssistantOpen && (
+                        {aiMode === 'stacked' && isAIAssistantOpen && (
                             <div ref={stackedAIRef} className="h-[600px] card overflow-hidden scroll-mt-4">
                                 <AIAssistant customer={selectedCustomer} language={language} onAddInteraction={onAddInteraction} onSetNextAction={onSetNextAction} />
                             </div>
                         )}
                       </div>
                     </div>
-                    {isLargeScreen && isAIAssistantOpen && (
+                    {aiMode === 'drawer' && isAIAssistantOpen && (
+                    <aside className="fixed top-0 right-0 bottom-0 z-40 w-[400px] max-w-[85vw] bg-surface border-l border-border shadow-2xl animate-fade-in" aria-label={t('aiAssistant', language)}>
+                        {/* The assistant has its own header; the close button sits in its empty right corner. */}
+                        <button onClick={onCloseAIAssistant} className="btn btn-ghost btn-icon absolute top-2.5 right-2.5 z-10" aria-label={language === 'zh' ? '關閉 AI 助理' : 'Close AI assistant'} title={language === 'zh' ? '關閉（Esc）' : 'Close (Esc)'}>
+                            <CloseIcon className="w-4 h-4" />
+                        </button>
+                        <div className="h-full overflow-hidden">
+                            <AIAssistant customer={selectedCustomer} language={language} onAddInteraction={onAddInteraction} onSetNextAction={onSetNextAction} />
+                        </div>
+                    </aside>
+                    )}
+                    {aiMode === 'column' && isAIAssistantOpen && (
                     <aside
                         className={`flex-shrink-0 border-l border-border transition-all duration-200 ease-out ${isAIAssistantOpen ? 'w-80 2xl:w-96' : 'w-0 opacity-0 pointer-events-none border-l-0'}`}
                         aria-hidden={!isAIAssistantOpen}

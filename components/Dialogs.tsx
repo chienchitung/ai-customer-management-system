@@ -3,6 +3,7 @@ import Modal from './Modal';
 import { t } from '../localization';
 import { Customer, CustomerStatus, InteractionType, NextAction } from '../types';
 import { AIError, extractCustomerFromText } from '../services/geminiService';
+import { ApiError } from '../lib/api';
 import { generateId } from '../lib/ids';
 import { addDays, todayISO } from '../lib/dates';
 import { SparklesIcon } from './icons';
@@ -15,8 +16,12 @@ type Language = 'en' | 'zh';
 
 /** The friendly message, plus the upstream reason when there is one (it usually names the setup problem). */
 export const aiErrorMessage = (error: unknown, language: Language) => {
-  const message = t(`ai.errors.${error instanceof AIError ? error.code : 'upstream_error'}`, language);
-  return error instanceof AIError && error.detail ? `${message}（${error.detail}）` : message;
+  // AIError comes from the AI calls; ApiError from other /api calls (e.g. document upload) that share the same codes.
+  const known = (code: string) => t(`ai.errors.${code}`, language) !== `ai.errors.${code}`;
+  const raw = error instanceof AIError || error instanceof ApiError ? error.code : 'upstream_error';
+  const message = t(`ai.errors.${known(raw) ? raw : 'upstream_error'}`, language);
+  const detail = error instanceof AIError || error instanceof ApiError ? error.detail : undefined;
+  return detail ? `${message}（${detail}）` : message;
 };
 
 const inputClass = 'input';

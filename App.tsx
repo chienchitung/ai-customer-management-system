@@ -538,6 +538,7 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
                 onEditCustomer={openEditModal}
                 language={language}
                 isAIAssistantOpen={isAIAssistantOpen}
+                onCloseAIAssistant={() => updatePrefs({ isAIAssistantOpen: false })}
                 onMoveCustomer={handleMoveCustomer}
                 onSetNextAction={handleSetNextAction}
                 onSnooze={handleSnooze}
