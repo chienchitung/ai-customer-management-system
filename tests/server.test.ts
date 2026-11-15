@@ -127,3 +127,12 @@ describe('buildRawEmail', () => {
     expect(raw).not.toMatch(/\r\nBcc:/);
   });
 });
+
+describe('config keys', () => {
+  it('strips the whitespace and quotes a dashboard paste can add', () => {
+    const c = configFromEnv({ GEMINI_API_KEY: ' "AQ.abc123"\n', COMPDF_API_KEY: "'ck'\r\n" });
+    expect(c.geminiApiKey).toBe('AQ.abc123');
+    expect(c.compdfApiKey).toBe('ck');
+    expect(configFromEnv({ GEMINI_API_KEY: '  ' }).geminiApiKey).toBeUndefined();
+  });
+});

@@ -4,7 +4,7 @@ import { getAccessToken } from './supabase';
 // turns error responses into ApiError with the server's error code.
 
 export class ApiError extends Error {
-  constructor(public code: string, public status: number) {
+  constructor(public code: string, public status: number, public detail?: string) {
     super(code);
   }
 }
@@ -27,7 +27,7 @@ export const apiFetch = async (path: string, init: RequestInit = {}): Promise<Re
   }
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new ApiError(data.error || 'upstream_error', res.status);
+    throw new ApiError(data.error || 'upstream_error', res.status, typeof data.detail === 'string' ? data.detail : undefined);
   }
   return res;
 };
