@@ -76,6 +76,18 @@ describe('/api/documents/parse', () => {
     const badKey = createRoutes(configFromEnv({ ...env, COMPDF_API_KEY: 'ck' }), fakeFetch(seen, { compdf: { code: '401', msg: 'Invalid API key' } }));
     expect((await call(badKey, pdf)).body.error).toBe('compdf_unauthorized');
   });
+
+  it('treats the real ComPDF key errors as a key problem, and trims the configured key', async () => {
+    // Observed against the live API: a wrong key returns 403 with an empty body; no key returns 200 + code 01001.
+    const routesFor = (fetchImpl: typeof fetch) => createRoutes(configFromEnv({ ...env, COMPDF_API_KEY: ' ck\n' }), fetchImpl);
+    const base = fakeFetch([]);
+    const emptyForbidden = (async (input: any, init: any) => String(input).includes('api-server.compdf.com') ? new Response('', { status: 403 }) : base(input, init)) as typeof fetch;
+    expect((await call(routesFor(emptyForbidden), pdf)).body.error).toBe('compdf_unauthorized');
+    const seen: Seen = [];
+    const unknownUser = routesFor(fakeFetch(seen, { compdf: { code: '01001', msg: '未知用户类型！', data: null } }));
+    expect((await call(unknownUser, pdf)).body.error).toBe('compdf_unauthorized');
+    expect(seen[0].headers['x-api-key']).toBe('ck');
+  });
 });
 
 // ---------- document agent logic ----------
