@@ -42,7 +42,7 @@ describe('/api/documents/parse', () => {
     const seen: Seen = [];
     const routes = createRoutes(configFromEnv({ ...env, COMPDF_API_KEY: 'ck' }), fakeFetch(seen));
     const r = await call(routes, pdf);
-    expect(r).toEqual({ status: 200, body: { text: '# Purchase Order\n\nTotal: USD 48,000', truncated: false, pages: 2, taskId: 't-1' } });
+    expect(r).toEqual({ status: 200, body: { text: '# Purchase Order\n\nTotal: USD 48,000', truncated: false, pages: null, taskId: 't-1' } });
     expect(seen[0].url).toBe('https://api-server.compdf.com/server/v2/process/pdf/markdown');
     expect(seen[0].headers['x-api-key']).toBe('ck');
     expect(seen[0].form?.get('enableOcr')).toBe('1');

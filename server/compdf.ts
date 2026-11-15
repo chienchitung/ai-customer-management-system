@@ -1,5 +1,6 @@
 import { HttpError } from './http.js';
 import type { ServerConfig } from './config.js';
+import { htmlTablesToMarkdown, textFromResult } from './zip.js';
 
 // ComPDF v2 API: the same endpoints the official ComPDF MCP server (github.com/ComPDFKit/compdf-mcp)
 // wraps. We call them directly from the server so the API key never reaches the browser and the
@@ -30,7 +31,6 @@ interface ComPDFTask {
   status?: string;
   failureCode?: string;
   failureReason?: string;
-  convertSize?: number;
 }
 
 const safeName = (name: string) => name.replace(/[^\w.\-一-鿿 ]+/g, '_').slice(0, 120) || 'document';
@@ -97,12 +97,25 @@ export const parseDocumentWithComPDF = async (
 
   const download = await fetchImpl(task.downloadUrl).catch(() => null);
   if (!download?.ok) throw new HttpError(502, 'compdf_failed');
-  const raw = (await download.text()).trim();
+  let raw: string;
+  try {
+    // ComPDF delivers a ZIP (Markdown plus page images) for most conversions; plain files also work.
+    raw = htmlTablesToMarkdown(textFromResult(Buffer.from(await download.arrayBuffer())))
+      .replace(/!\[[^\]]*\]\([^)]*\)/g, '') // drop image references; the model only needs the text
+      .replace(/<img[^>]*>/gi, '')
+      .replace(/<\/?(div|p|span|br)[^>]*>/gi, '\n') // leftover layout HTML around images and page markers
+      .replace(/[ \t]+$/gm, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  } catch (error) {
+    console.error('[compdf] could not read result:', task.taskId, error);
+    throw new HttpError(502, 'compdf_failed');
+  }
   if (!raw) throw new HttpError(422, 'compdf_unreadable');
   return {
     text: raw.slice(0, MAX_DOCUMENT_TEXT),
     truncated: raw.length > MAX_DOCUMENT_TEXT,
-    pages: typeof task.convertSize === 'number' && task.convertSize > 0 ? task.convertSize : null,
+    pages: null, // ComPDF reports sizes, not page counts
     taskId: task.taskId ?? null,
   };
 };
