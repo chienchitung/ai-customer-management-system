@@ -19,7 +19,7 @@ import { formatDate, friendlyDate } from '../lib/format';
 import { organizeMeetingNotes, OrganizedNotes } from '../services/geminiService';
 import { daysBetween, todayISO, addDays } from '../lib/dates';
 import { isOpen, STALE_DAYS } from '../lib/insights';
-import { PlusIcon, ArrowLeftIcon, CalendarIcon, IdentificationIcon, LightBulbIcon, PencilIcon, SearchIcon, FilterIcon, SparklesIcon, MicrophoneIcon, TrashIcon, CheckIcon, PasteIcon } from './icons';
+import { PlusIcon, ArrowLeftIcon, CalendarIcon, IdentificationIcon, LightBulbIcon, PencilIcon, SearchIcon, FilterIcon, SparklesIcon, MicrophoneIcon, TrashIcon, CheckIcon, PasteIcon, DocumentIcon } from './icons';
 
 // Mapping customer statuses to specific Tailwind CSS classes for color-coding.
 export const statusColors: { [key in CustomerStatus]: { text: string; bg: string; border: string; dropdown: string } } = {
@@ -50,6 +50,7 @@ interface CustomerDashboardProps {
   onBulkUpdate: (ids: string[], patch: { status?: CustomerStatus; followUpDays?: number }) => void;
   onUpdateInteraction: (customerId: string, interactionId: string, patch: Partial<Omit<Interaction, 'id'>>) => void;
   onDeleteInteraction: (customerId: string, interactionId: string) => void;
+  onReadDocument: (customerId: string) => void;
 }
 
 
@@ -91,6 +92,7 @@ const ListView: React.FC<CustomerDashboardProps> = ({
   onBulkUpdate,
   onUpdateInteraction,
   onDeleteInteraction,
+  onReadDocument,
 }) => {
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const toggleSelected = (id: string) => setSelectedIds(prev => {
@@ -362,6 +364,7 @@ const ListView: React.FC<CustomerDashboardProps> = ({
                             onDeleteInteraction={onDeleteInteraction}
                             onUpdateCustomer={onUpdateCustomer}
                             onEditCustomer={() => onEditCustomer(selectedCustomer)}
+                            onReadDocument={() => onReadDocument(selectedCustomer.id)}
                             onSetNextAction={onSetNextAction}
                             onSnooze={onSnooze}
                             onCompleteAction={onCompleteAction}
@@ -430,6 +433,7 @@ const CustomerDetails: React.FC<{
   onAddInteraction: (customerId: string, interaction: Omit<Interaction, 'id'>) => void;
   onUpdateCustomer: (customerId: string, updatedData: Partial<Omit<Customer, 'id'>>) => void;
   onEditCustomer: () => void;
+  onReadDocument: () => void;
   onSetNextAction: (customerId: string, action: NextAction | undefined) => void;
   onSnooze: (customerId: string, days: number) => void;
   onCompleteAction: (customerId: string) => void;
@@ -437,7 +441,7 @@ const CustomerDetails: React.FC<{
   onUpdateInteraction: (customerId: string, interactionId: string, patch: Partial<Omit<Interaction, 'id'>>) => void;
   onDeleteInteraction: (customerId: string, interactionId: string) => void;
   language: 'en' | 'zh';
-}> = ({ customer, onAddInteraction, onUpdateCustomer, onEditCustomer, onSetNextAction, onSnooze, onCompleteAction, onDelete, onUpdateInteraction, onDeleteInteraction, language }) => {
+}> = ({ customer, onAddInteraction, onUpdateCustomer, onEditCustomer, onReadDocument, onSetNextAction, onSnooze, onCompleteAction, onDelete, onUpdateInteraction, onDeleteInteraction, language }) => {
     const [typeFilter, setTypeFilter] = useState<string>('all');
     const [startDateFilter, setStartDateFilter] = useState<string>('');
     const [endDateFilter, setEndDateFilter] = useState<string>('');
@@ -504,6 +508,9 @@ const CustomerDetails: React.FC<{
                         ))}
                     </select>
                 </label>
+                <button onClick={onReadDocument} className="btn btn-ghost btn-icon" title={t('docAgent.button', language)} aria-label={t('docAgent.button', language)}>
+                    <DocumentIcon className="w-4 h-4" />
+                </button>
                 <button onClick={onEditCustomer} className="btn btn-ghost btn-icon" title={t('editCustomer', language)} aria-label={t('editCustomer', language)}>
                     <PencilIcon className="w-4 h-4" />
                 </button>

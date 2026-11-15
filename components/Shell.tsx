@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom';
 import { Customer } from '../types';
 import { t } from '../localization';
 import { Avatar, StatusBadge } from './ui';
-import { SearchIcon, PlusIcon, PasteIcon } from './icons';
+import { SearchIcon, PlusIcon, PasteIcon, DocumentIcon } from './icons';
 
 import { CircleCheck, Users, ChartNoAxesColumn, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 type Language = 'en' | 'zh';
@@ -28,8 +28,9 @@ export const Sidebar: React.FC<{
   onOpenPalette: () => void;
   onNewCustomer: () => void;
   onCapture: () => void;
+  onReadDocument: () => void;
   footer: React.ReactNode;
-}> = ({ collapsed, onToggle, view, onChange, todayCount, customerCount, language, onOpenPalette, onNewCustomer, onCapture, footer }) => {
+}> = ({ collapsed, onToggle, view, onChange, todayCount, customerCount, language, onOpenPalette, onNewCustomer, onCapture, onReadDocument, footer }) => {
   const item = (v: MainView, key: string, count?: number, highlight?: boolean) => (
     <button
       key={v}
@@ -76,6 +77,9 @@ export const Sidebar: React.FC<{
         </button>
         <button onClick={onCapture} className="w-full flex items-center gap-2.5 h-9 px-3 rounded-lg text-sm text-text-secondary hover:bg-secondary hover:text-text-primary transition-colors" aria-label={collapsed ? t('capture.button', language) : undefined}>
           <PasteIcon className="w-[18px] h-[18px]" />{!collapsed && <span className="flex-grow text-left">{t('capture.button', language)}</span>}
+        </button>
+        <button onClick={onReadDocument} className="w-full flex items-center gap-2.5 h-9 px-3 rounded-lg text-sm text-text-secondary hover:bg-secondary hover:text-text-primary transition-colors" aria-label={collapsed ? t('docAgent.button', language) : undefined}>
+          <DocumentIcon className="w-[18px] h-[18px]" />{!collapsed && <span className="flex-grow text-left">{t('docAgent.button', language)}</span>}
         </button>
       </div>
 

@@ -2,6 +2,7 @@ import { GoogleGenAI } from '@google/genai';
 import { Handler, HttpError, readJson, route, sendJson, queryParams } from './http.js';
 import { ServerConfig, configFromEnv } from './config.js';
 import { LOCAL_USER, createAdmin, requireUser } from './supabase.js';
+import { MAX_DOCUMENT_BYTES, DOCUMENT_TYPES, parseDocumentWithComPDF } from './compdf.js';
 import { GMAIL_SCOPES, getMessageText, getProfileEmail, listMessagesWith, listRecentInbox, refreshAccessToken, revokeToken, sendEmail } from './google.js';
 
 // All API routes, shared by Vercel functions (api/) and the Vite dev server.
@@ -151,8 +152,31 @@ export const createRoutes = (config: ServerConfig, fetchImpl: typeof fetch = fet
     },
   });
 
+  const documentParse = route({
+    // Turns an uploaded PDF or image into text with ComPDF. The AI analysis runs afterwards
+    // through /api/ai, so the user can review what ComPDF read before anything is changed.
+    POST: async (req, res) => {
+      const userId = await requireUser(req, config, fetchImpl);
+      if (!config.compdfApiKey) throw new HttpError(501, 'compdf_not_configured');
+      const body = await readJson<{ fileName?: string; contentType?: string; dataBase64?: string }>(req, Math.ceil(MAX_DOCUMENT_BYTES * 1.4) + 2000);
+      const { fileName, contentType, dataBase64 } = body ?? {};
+      if (!fileName || typeof fileName !== 'string' || !contentType || !dataBase64 || typeof dataBase64 !== 'string') {
+        throw new HttpError(400, 'bad_request');
+      }
+      if (!DOCUMENT_TYPES[contentType]) throw new HttpError(415, 'unsupported_document');
+      const bytes = Buffer.from(dataBase64, 'base64');
+      if (bytes.length === 0) throw new HttpError(400, 'bad_request');
+      if (bytes.length > MAX_DOCUMENT_BYTES) throw new HttpError(413, 'payload_too_large');
+      if (userId !== LOCAL_USER && admin.enabled && !(await admin.consumeAiQuota(userId, config.aiDailyLimit))) {
+        throw new HttpError(429, 'quota_exceeded');
+      }
+      sendJson(res, 200, await parseDocumentWithComPDF(config, { fileName, contentType, bytes }, fetchImpl));
+    },
+  });
+
   return {
     '/api/ai': route({ POST: aiHandler }),
+    '/api/documents/parse': documentParse,
     '/api/google/connect': googleConnect,
     '/api/gmail/messages': gmailMessages,
     '/api/gmail/message': gmailMessage,
