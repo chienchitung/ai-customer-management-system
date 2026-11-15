@@ -10,7 +10,7 @@ vi.mock('../lib/api', () => ({
   }),
 }));
 
-const { WRITING_RULES, salesSystemInstruction, draftFollowUpEmail, analyzeClosedDeals } = await import('../services/geminiService');
+const { WRITING_RULES, ANALYSIS_PROMPT, salesSystemInstruction, draftFollowUpEmail, analyzeClosedDeals } = await import('../services/geminiService');
 
 const customer: Customer = {
   id: '1', name: 'Eleanor Vance', company: 'Innovate Corp', email: 'e@x.com',
@@ -45,5 +45,15 @@ describe('AI writing rules', () => {
   it('are sent with the closed-deal analysis', async () => {
     await analyzeClosedDeals([{ ...customer, status: CustomerStatus.CLOSED_WON }], 'en');
     expect(calls[0].systemInstruction).toContain(WRITING_RULES);
+    expect(calls[0].contents[0].text).toContain(ANALYSIS_PROMPT);
+    expect(calls[0].contents[0].text).toContain('Closed deals:');
+  });
+
+  it('ask the analysis for a lead finding, cited patterns and no bold-colon labels or closing summary', () => {
+    expect(ANALYSIS_PROMPT).toMatch(/names the deals it comes from/);
+    expect(ANALYSIS_PROMPT).toMatch(/bold label and a colon/);
+    expect(ANALYSIS_PROMPT).toMatch(/No closing summary/);
+    expect(ANALYSIS_PROMPT).toMatch(/fewer than 3 closed deals/);
+    expect(WRITING_RULES).toContain('綜上所述');
   });
 });
