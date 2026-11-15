@@ -83,8 +83,8 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ customer, language, onAddInte
     setIsLoading(false);
     setSavedNotes(new Set());
     const welcome = language === 'zh'
-      ? `您好！我是您的 AI 助理，隨時準備協助您處理與 ${customer.name} 的事務。您可以直接提問，或使用下方的快速按鈕。`
-      : `Hello! I'm your AI assistant, ready to help with ${customer.name}. Ask a question or use the quick actions below.`;
+      ? `可以問關於 ${customer.name} 的事，例如：上次談到哪裡？對方最在意什麼？`
+      : `Ask about ${customer.name}, for example: Where did we leave off? What do they care about most?`;
     setMessages([{ id: newId(), role: 'model', kind: 'text', text: welcome, welcome: true }]);
     return () => abortRef.current?.abort();
   }, [customer.id, language]); // eslint-disable-line react-hooks/exhaustive-deps

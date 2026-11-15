@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom';
 import { Customer } from '../types';
 import { t } from '../localization';
 import { Avatar, StatusBadge } from './ui';
-import { SearchIcon, PlusIcon, SparklesIcon } from './icons';
+import { SearchIcon, PlusIcon, PasteIcon } from './icons';
 
 import { CircleCheck, Users, ChartNoAxesColumn, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 type Language = 'en' | 'zh';
@@ -34,7 +34,7 @@ export const Sidebar: React.FC<{
     <button
       key={v}
       onClick={() => onChange(v)}
-      aria-label={t(`shell.titles.${v}`, language)}
+      aria-label={collapsed ? t(`shell.titles.${v}`, language) : undefined}
       aria-current={view === v ? 'page' : undefined}
       title={`${t(`shell.titles.${v}`, language)} (${key})`}
       className={`w-full flex items-center gap-3 h-9 px-3 rounded-lg text-sm transition-all ${
@@ -53,14 +53,14 @@ export const Sidebar: React.FC<{
     <aside className={`app-sidebar hidden md:flex ${collapsed ? 'w-[76px]' : 'w-64'} transition-[width] duration-200 flex-shrink-0 flex-col px-3 py-3 gap-4 border-r border-border`} aria-label={t('settings.menu', language)}>
       <div className="flex items-center gap-3 p-2 text-left">
         <img src="/pulse-logo.svg" alt="" className="w-10 h-10 flex-shrink-0" aria-hidden="true" />
-        <span className={collapsed ? 'hidden' : 'min-w-0 flex-grow'}><span className="block font-bold text-[15px] tracking-tight text-text-primary">Pulse CRM</span><span className="block text-[10px] uppercase tracking-[.14em] text-text-secondary truncate">Sales workspace</span></span>
+        <span className={collapsed ? 'hidden' : 'min-w-0 flex-grow'}><span className="block font-bold text-[15px] tracking-tight text-text-primary">Pulse CRM</span></span>
       </div>
 
       {onToggle && <button onClick={onToggle} aria-expanded={!collapsed} aria-label={language === 'zh' ? (collapsed ? '展開側欄' : '收合側欄') : (collapsed ? 'Expand sidebar' : 'Collapse sidebar')} title={language === 'zh' ? (collapsed ? '展開側欄' : '收合側欄') : 'Toggle sidebar'} className={`w-full flex items-center gap-3 h-9 px-3 rounded-lg text-sm text-text-secondary hover:bg-secondary hover:text-text-primary transition-colors ${collapsed ? 'justify-center' : ''}`}>{collapsed ? <PanelLeftOpen className="w-[18px] h-[18px]" /> : <><PanelLeftClose className="w-[18px] h-[18px]" /><span className="flex-grow text-left">{language === 'zh' ? '收合側欄' : 'Collapse sidebar'}</span></>}</button>}
-      <button aria-label={t('shell.search', language)} title={t('shell.search', language)} onClick={onOpenPalette} className="w-full flex items-center gap-2 h-9 px-3 rounded-lg border border-border bg-surface text-sm text-text-secondary hover:border-text-secondary/40 transition-colors shadow-sm">
+      <button aria-label={collapsed ? t('shell.search', language) : undefined} title={t('shell.search', language)} onClick={onOpenPalette} className="w-full flex items-center gap-2 h-9 px-3 rounded-lg border border-border bg-surface text-sm text-text-secondary hover:border-text-secondary/40 transition-colors shadow-sm">
         <SearchIcon className="w-4 h-4" />
-        {!collapsed && <span className="flex-grow text-left">{t('shell.search', language)}</span>}
-        <kbd className={collapsed ? 'hidden' : 'kbd'}>{isMac() ? '⌘K' : 'Ctrl K'}</kbd>
+        {!collapsed && <span className="flex-grow min-w-0 truncate text-left">{t('shell.search', language)}</span>}
+        <kbd className={collapsed ? 'hidden' : 'kbd whitespace-nowrap flex-shrink-0'}>{isMac() ? '⌘K' : 'Ctrl K'}</kbd>
       </button>
 
       <nav className="space-y-0.5" aria-label="Main">
@@ -70,12 +70,12 @@ export const Sidebar: React.FC<{
       </nav>
 
       <div className="space-y-1 border-t border-border pt-4">
-        <p className={`${collapsed ? 'hidden' : ''} px-3 pb-1 text-[10px] font-semibold uppercase tracking-[.16em] text-text-secondary`}>{t('shell.quick', language)}</p>
-        <button onClick={onNewCustomer} className="w-full flex items-center gap-2.5 h-9 px-3 rounded-lg text-sm text-text-secondary hover:bg-secondary hover:text-text-primary transition-colors" aria-label={t('addNewCustomer', language)}>
+        <p className={`${collapsed ? 'hidden' : ''} px-3 pb-1 text-xs font-medium text-text-secondary`}>{t('shell.quick', language)}</p>
+        <button onClick={onNewCustomer} className="w-full flex items-center gap-2.5 h-9 px-3 rounded-lg text-sm text-text-secondary hover:bg-secondary hover:text-text-primary transition-colors" aria-label={collapsed ? t('addNewCustomer', language) : undefined}>
           <PlusIcon className="w-[18px] h-[18px]" />{!collapsed && <><span className="flex-grow text-left">{t('shell.newCustomer', language)}</span><kbd className="kbd">N</kbd></>}
         </button>
-        <button onClick={onCapture} className="w-full flex items-center gap-2.5 h-9 px-3 rounded-lg text-sm text-text-secondary hover:bg-secondary hover:text-text-primary transition-colors" aria-label={t('capture.button', language)}>
-          <SparklesIcon className="w-[18px] h-[18px]" />{!collapsed && <span className="flex-grow text-left">{t('capture.button', language)}</span>}
+        <button onClick={onCapture} className="w-full flex items-center gap-2.5 h-9 px-3 rounded-lg text-sm text-text-secondary hover:bg-secondary hover:text-text-primary transition-colors" aria-label={collapsed ? t('capture.button', language) : undefined}>
+          <PasteIcon className="w-[18px] h-[18px]" />{!collapsed && <span className="flex-grow text-left">{t('capture.button', language)}</span>}
         </button>
       </div>
 

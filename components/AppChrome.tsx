@@ -34,7 +34,7 @@ export const SettingsMenu: React.FC<{
   ];
   return <Menu.Root>
     <Menu.Trigger asChild>
-      <button className={variant === 'account' ? 'w-full flex items-center gap-3 p-2 rounded-lg hover:bg-secondary text-left' : 'btn btn-ghost btn-icon'} aria-label={zh ? '帳號與設定' : 'Account & settings'}>
+      <button className={variant === 'account' ? 'w-full flex items-center gap-3 p-2 rounded-lg hover:bg-secondary text-left' : 'btn btn-ghost btn-icon'} aria-label={variant === 'account' ? undefined : (zh ? '帳號與設定' : 'Account & settings')} title={zh ? '帳號與設定' : 'Account & settings'}>
         {identity}
         {variant === 'account' && <span className="min-w-0 flex-grow"><span className="block text-sm font-semibold truncate">{name}</span><span className="block text-xs text-text-secondary truncate">{userEmail || (zh ? '僅限此裝置' : 'This device only')}</span></span>}
         {variant === 'account' && <MoreHorizontal className="w-4 h-4" aria-hidden="true" />}

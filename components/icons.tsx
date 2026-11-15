@@ -11,6 +11,7 @@ export {
   X as CloseIcon,
   Sparkles as SparklesIcon,
   Clipboard as ClipboardIcon,
+  ClipboardPaste as PasteIcon,
   Check as CheckIcon,
   User as UserIcon,
   Pencil as PencilIcon,

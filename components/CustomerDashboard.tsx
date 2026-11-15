@@ -19,7 +19,7 @@ import { formatDate, friendlyDate } from '../lib/format';
 import { organizeMeetingNotes, OrganizedNotes } from '../services/geminiService';
 import { daysBetween, todayISO, addDays } from '../lib/dates';
 import { isOpen, STALE_DAYS } from '../lib/insights';
-import { PlusIcon, ArrowLeftIcon, CalendarIcon, IdentificationIcon, LightBulbIcon, PencilIcon, SearchIcon, FilterIcon, SparklesIcon, MicrophoneIcon, TrashIcon, CheckIcon } from './icons';
+import { PlusIcon, ArrowLeftIcon, CalendarIcon, IdentificationIcon, LightBulbIcon, PencilIcon, SearchIcon, FilterIcon, SparklesIcon, MicrophoneIcon, TrashIcon, CheckIcon, PasteIcon } from './icons';
 
 // Mapping customer statuses to specific Tailwind CSS classes for color-coding.
 export const statusColors: { [key in CustomerStatus]: { text: string; bg: string; border: string; dropdown: string } } = {
@@ -416,7 +416,7 @@ export const WelcomeScreen: React.FC<{
                 {t('welcome.cta', language)}
             </button>
             <button onClick={onOpenCapture} className="btn btn-secondary h-9 px-4">
-                <SparklesIcon className="w-4 h-4" />{t('capture.button', language)}
+                <PasteIcon className="w-4 h-4" />{t('capture.button', language)}
             </button>
             <button onClick={onLoadDemo} className="btn btn-ghost h-9 px-4">
                 {t('emptyCloud.demo', language)}
