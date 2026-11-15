@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Customer, CustomerStatus } from '../types';
 
-const calls: { systemInstruction: string; contents: { text: string }[] }[] = [];
+const calls: { systemInstruction: string; contents: { text: string }[]; responseSchema?: unknown }[] = [];
 vi.mock('../lib/api', () => ({
   ApiError: class extends Error {},
   apiFetch: vi.fn(async (_url: string, init: { body: string }) => {
@@ -10,7 +10,7 @@ vi.mock('../lib/api', () => ({
   }),
 }));
 
-const { WRITING_RULES, ANALYSIS_PROMPT, salesSystemInstruction, draftFollowUpEmail, analyzeClosedDeals } = await import('../services/geminiService');
+const { WRITING_RULES, ANALYSIS_PROMPT, salesSystemInstruction, draftFollowUpEmail, analyzeClosedDeals, analyzeDocument } = await import('../services/geminiService');
 
 const customer: Customer = {
   id: '1', name: 'Eleanor Vance', company: 'Innovate Corp', email: 'e@x.com',
@@ -55,5 +55,24 @@ describe('AI writing rules', () => {
     expect(ANALYSIS_PROMPT).toMatch(/No closing summary/);
     expect(ANALYSIS_PROMPT).toMatch(/fewer than 3 closed deals/);
     expect(WRITING_RULES).toContain('綜上所述');
+  });
+});
+
+// Gemini rejects a response schema whose enum contains an empty string (400 INVALID_ARGUMENT),
+// which mocked tests never see. Check every enum the app sends.
+const emptyEnums = (node: unknown, path = ''): string[] => {
+  if (!node || typeof node !== 'object') return [];
+  const here = Array.isArray((node as any).enum) && (node as any).enum.some((v: unknown) => v === '') ? [path || '(root)'] : [];
+  return [...here, ...Object.entries(node).flatMap(([k, v]) => emptyEnums(v, path ? `${path}.${k}` : k))];
+};
+
+describe('document agent request', () => {
+  it('sends a schema Gemini accepts, the customer list, the document and the signature rule', async () => {
+    await analyzeDocument('# Purchase Order PO-1', 'po.pdf', [customer], 'zh');
+    expect(emptyEnums(calls[0].responseSchema)).toEqual([]);
+    expect(calls[0].contents[0].text).toContain(`${customer.id} | Eleanor Vance | Innovate Corp`);
+    expect(calls[0].contents[0].text).toContain('# Purchase Order PO-1');
+    expect(calls[0].systemInstruction).toMatch(/still needs signatures means "Negotiation"/);
+    expect(calls[0].systemInstruction).toContain(WRITING_RULES);
   });
 });

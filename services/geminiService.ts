@@ -294,7 +294,7 @@ Your job:
 1. Classify the document and give it a short title.
 2. Identify the counterparty (the customer side, not the rep's own company) and match it to one customer from the list by id. Leave matchedCustomerId empty if no customer clearly matches; do not guess.
 3. Pull out the deal amount (number only, no currency symbol) and its ISO currency code if the document states one, and the dates that matter (deadlines, validity, delivery, payment).
-4. Say what the document means for the deal: suggestedStatus only when the document is clear evidence (a quote request means at least "Prospect", a quote or draft contract under discussion means "Negotiation", a signed purchase order or signed contract means "Closed (Won)"); otherwise leave it empty.
+4. Say what the document means for the deal: suggestedStatus only when the document is clear evidence (a quote request means at least "Prospect", a quote or draft contract under discussion means "Negotiation", "Closed (Won)" only when the document shows it is already signed or accepted by the customer, such as signatures, a company stamp or an acceptance statement. A purchase order or contract that still needs signatures means "Negotiation", and signing it should be the next action); otherwise omit it.
 5. Propose one next action with a due date, and list terms the rep should check (payment terms, penalties, auto-renewal, liability, exclusivity), each in a few words.
 Write title, summary, next action and watch items in ${languageName(language)}. Copy names, amounts and dates exactly as written in the document.
 
@@ -329,7 +329,8 @@ export const analyzeDocument = (
           type: Type.ARRAY,
           items: { type: Type.OBJECT, properties: { label: { type: Type.STRING }, date: { type: Type.STRING, description: 'YYYY-MM-DD' } }, required: ['label', 'date'] },
         },
-        suggestedStatus: { type: Type.STRING, enum: ['', CustomerStatus.LEAD, CustomerStatus.PROSPECT, CustomerStatus.NEGOTIATION, CustomerStatus.CLOSED_WON] },
+        // Optional: omitted when the document is not clear evidence. Gemini rejects empty strings in an enum.
+        suggestedStatus: { type: Type.STRING, enum: [CustomerStatus.LEAD, CustomerStatus.PROSPECT, CustomerStatus.NEGOTIATION, CustomerStatus.CLOSED_WON] },
         nextActionDescription: { type: Type.STRING },
         nextActionDueDate: { type: Type.STRING, description: 'YYYY-MM-DD' },
         newPainPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
