@@ -83,7 +83,7 @@ const TodayView: React.FC<TodayViewProps> = ({ customers, language, onOpenCustom
     <div className="h-full overflow-y-auto -mx-4 md:-mx-6 px-4 md:px-6">
       <div className="max-w-6xl mx-auto space-y-7 pb-8">
         <div className="flex flex-wrap items-end justify-between gap-3 pt-1">
-          <div><p className="text-xs font-semibold uppercase tracking-[.14em] text-primary mb-1">{language === 'zh' ? '每日焦點' : 'Daily focus'}</p><p className="text-sm text-text-secondary">
+          <div><p className="text-sm text-text-secondary">
             <span className="font-medium text-text-primary">{formatDate(today, language)}</span> · {t('todayView.subtitle', language)}
           </p></div>
           {items.length > 0 && (
@@ -149,7 +149,7 @@ const TodayView: React.FC<TodayViewProps> = ({ customers, language, onOpenCustom
                       <div className="flex items-center gap-3 flex-shrink-0 pl-11 lg:pl-0">
                         {c.dealValue ? <span className="text-sm font-medium tabular-nums flex-shrink-0 hidden md:block lg:min-w-[150px] lg:text-right"><DealAmount customer={c} /></span> : <span className="hidden lg:block lg:min-w-[150px]" />}
                         {/* Fixed width keeps the amount column aligned whichever actions a row has. */}
-                        <div className="flex items-center justify-end gap-1.5 lg:w-[12rem]">
+                        <div className="flex items-center justify-end gap-1.5 whitespace-nowrap lg:w-[14.5rem]">
                         {c.nextAction ? (
                           <>
                             <button onClick={() => onSnooze(c.id, 1)} className="btn btn-ghost btn-sm">{t('todayView.snooze', language)}</button>

@@ -12,7 +12,7 @@ import ImportCsvModal from './components/ImportCsvModal';
 import { BottomNav, SettingsMenu, SyncBadge, SettingsSection } from './components/AppChrome';
 import SettingsPage from './components/SettingsPage';
 import { CommandPalette, Sidebar } from './components/Shell';
-import { ViewListIcon, ViewGridIcon, PlusIcon, ChatbotIcon, SparklesIcon, SearchIcon } from './components/icons';
+import { ViewListIcon, ViewGridIcon, PlusIcon, ChatbotIcon, PasteIcon, SearchIcon } from './components/icons';
 import { useAuth } from './hooks/useAuth';
 import { useMediaQuery } from './hooks/useMediaQuery';
 import { useDueReminders } from './hooks/useDueReminders';
@@ -400,7 +400,7 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
 
   const paletteActions = [
     { id: 'a-new', label: t('shell.newCustomer', language), hint: 'N', icon: <PlusIcon className="w-4 h-4" />, run: openAddModal },
-    { id: 'a-capture', label: t('capture.button', language), icon: <SparklesIcon className="w-4 h-4" />, run: () => setIsCaptureOpen(true) },
+    { id: 'a-capture', label: t('capture.button', language), icon: <PasteIcon className="w-4 h-4" />, run: () => setIsCaptureOpen(true) },
     { id: 'a-theme', label: t('shell.toggleTheme', language), icon: <Moon className="w-4 h-4" />, run: toggleTheme },
     { id: 'a-lang', label: t('shell.toggleLanguage', language), icon: <Languages className="w-4 h-4" />, run: toggleLanguage },
     ...dataItems.filter(d => !d.danger).map((d, i) => ({ id: `a-data-${i}`, label: d.label, icon: <Download className="w-4 h-4" />, run: d.onClick })),
@@ -449,7 +449,7 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
         onCapture={() => setIsCaptureOpen(true)}
         footer={
           <div className="space-y-2 border-t border-border pt-3">
-            <div className={sidebarCollapsed ? 'hidden' : 'px-2 flex items-center justify-between'}><span className="text-[10px] font-semibold uppercase tracking-[.14em] text-text-secondary">{language === 'zh' ? '資料狀態' : 'Data status'}</span><SyncBadge status={store.status} onRetry={store.retry} language={language} /></div>
+            <div className={sidebarCollapsed ? 'hidden' : 'px-2 flex items-center justify-between'}><span className="text-xs font-medium text-text-secondary">{language === 'zh' ? '資料狀態' : 'Data status'}</span><SyncBadge status={store.status} onRetry={store.retry} language={language} /></div>
             <SettingsMenu {...settingsProps} variant={sidebarCollapsed ? 'icon' : 'account'} />
           </div>
         }
@@ -474,7 +474,7 @@ const Workspace: React.FC<WorkspaceProps> = ({ prefs, updatePrefs, userId, userE
             <SearchIcon className="w-5 h-5" />
           </button>
           <button onClick={() => setIsCaptureOpen(true)} className="btn btn-ghost btn-icon hidden sm:inline-flex md:hidden" aria-label={t('capture.button', language)}>
-            <SparklesIcon className="w-5 h-5" />
+            <PasteIcon className="w-5 h-5" />
           </button>
           <button onClick={() => openAddModal()} className="btn btn-primary" aria-label={t('addNewCustomer', language)} title={`${t('addNewCustomer', language)} (N)`}>
             <PlusIcon className="w-4 h-4" /><span className="hidden sm:inline">{t('shell.newCustomer', language)}</span>

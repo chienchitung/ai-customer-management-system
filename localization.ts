@@ -47,7 +47,7 @@ const translations = {
         logInteraction: 'Log Interaction',
         welcome: {
             title: 'Welcome to Pulse CRM',
-            message: 'Get started by adding your first customer. This dashboard will help you manage relationships, track progress, and get AI-powered insights to close deals faster.',
+            message: 'Add your first customer, or paste an email and let the form fill itself in.',
             cta: 'Add Your First Customer',
         },
         modal: {
@@ -113,8 +113,8 @@ const translations = {
         interactionTypes: { Email: 'Email', Call: 'Call', Meeting: 'Meeting', Note: 'Note' },
         todayView: {
             title: 'Today',
-            subtitle: 'Your prioritized follow-ups. Clear this list and the pipeline takes care of itself.',
-            allClear: 'All caught up! No follow-ups need attention.',
+            subtitle: 'Overdue first, then due today. Within a group, larger deals come first.',
+            allClear: 'Nothing is due or overdue.',
             overdue: 'Overdue', dueToday: 'Due today', stale: 'Going cold', noNextAction: 'No next action', upcoming: 'Coming up',
             daysOverdue: '{n} days overdue', daysSince: 'No contact for {n} days', inDays: 'Due in {n} days',
             showAll: 'Show all {n}', showLess: 'Show less', complete: 'Done', snooze: 'Snooze 1 day', defaultAction: 'Follow up with {name}', log: 'Log', open: 'Open', setAction: 'Set action',
@@ -124,7 +124,7 @@ const translations = {
         nextActionCard: { complete: 'Mark done', snooze: '+1 day', snoozeWeek: '+1 week', edit: 'Edit', overdueBy: 'Overdue by {n} days', dueTodayLabel: 'Due today' },
         completeAction: { title: 'Complete next action', logAs: 'Log it as an interaction', result: 'Result / notes', next: 'Next action (optional)', save: 'Complete' },
         logger: {
-            organize: 'AI tidy up', organizing: 'Organizing...', dictate: 'Dictate', stopDictate: 'Stop',
+            organize: 'Tidy notes', organizing: 'Organizing...', dictate: 'Dictate', stopDictate: 'Stop',
             aiResult: 'AI suggestions', applySummary: 'Use this summary', applyNext: 'Set as next action', addPain: 'Add pain points', addComp: 'Add competitors', saveAll: 'Log & apply all',
             dictationUnsupported: 'Voice input is not supported in this browser.',
         },
@@ -142,13 +142,13 @@ const translations = {
             nextStepTitle: 'Suggested next step', emailTitle: 'Email draft', subject: 'Subject', due: 'Due',
         },
         capture: {
-            button: 'Smart capture', title: 'Create customer from text',
+            button: 'Create from text', title: 'Create customer from text',
             help: 'Paste an email, signature, business card or meeting notes. AI will pre-fill the customer form for you to review.',
             placeholder: 'e.g. "Hi, I\'m Amy Lin, Procurement Manager at Acme Ltd (amy@acme.com). We are looking to replace our spreadsheet process..."',
             extract: 'Extract with AI', extracting: 'Extracting...',
         },
         closeReason: {
-            wonTitle: 'Why did we win?', lostTitle: 'Why did we lose?', help: 'A short reason helps the team learn from each deal.',
+            wonTitle: 'Why did we win?', lostTitle: 'Why did we lose?', help: 'The dashboard groups these reasons so you can see why deals are won or lost.',
             placeholder: 'e.g. price, missing feature, chose competitor X...', save: 'Save', skip: 'Skip',
             presets: { price: 'Price', features: 'Features', competitor: 'Competitor', timing: 'Timing / budget', relationship: 'Relationship' },
         },
@@ -261,7 +261,7 @@ const translations = {
         logInteraction: '記錄互動',
         welcome: {
             title: '歡迎使用 Pulse CRM',
-            message: '開始新增您的第一位客戶。此儀表板將幫助您管理客戶關係、追蹤進度，並獲得 AI 驅動的洞察以更快地完成交易。',
+            message: '新增第一位客戶，或貼上一封郵件，讓系統幫你填好客戶資料。',
             cta: '新增您的第一位客戶',
         },
         modal: {
@@ -327,8 +327,8 @@ const translations = {
         interactionTypes: { Email: '郵件', Call: '電話', Meeting: '會議', Note: '備註' },
         todayView: {
             title: '今日工作台',
-            subtitle: '依緊急程度與金額排序的待辦跟進。清空這份清單，業績自然推進。',
-            allClear: '太好了！目前沒有需要處理的跟進。',
+            subtitle: '逾期的排最前，再來是今天到期；同一組裡金額大的在前。',
+            allClear: '目前沒有到期或逾期的跟進。',
             overdue: '已逾期', dueToday: '今天到期', stale: '客戶變冷', noNextAction: '未設下一步', upcoming: '即將到期',
             daysOverdue: '逾期 {n} 天', daysSince: '已 {n} 天未聯絡', inDays: '{n} 天後到期',
             showAll: '顯示全部 {n} 筆', showLess: '收合', complete: '完成', snooze: '延後 1 天', defaultAction: '跟進 {name}', log: '記錄', open: '開啟', setAction: '設定行動',
@@ -338,7 +338,7 @@ const translations = {
         nextActionCard: { complete: '標記完成', snooze: '+1 天', snoozeWeek: '+1 週', edit: '編輯', overdueBy: '已逾期 {n} 天', dueTodayLabel: '今天到期' },
         completeAction: { title: '完成下一步行動', logAs: '同時記錄為一筆互動', result: '結果 / 備註', next: '下一步行動（選填）', save: '完成' },
         logger: {
-            organize: 'AI 整理', organizing: '整理中...', dictate: '語音輸入', stopDictate: '停止',
+            organize: '整理筆記', organizing: '整理中...', dictate: '語音輸入', stopDictate: '停止',
             aiResult: 'AI 建議', applySummary: '使用此摘要', applyNext: '設為下一步行動', addPain: '加入痛點', addComp: '加入競爭對手', saveAll: '記錄並全部套用',
             dictationUnsupported: '此瀏覽器不支援語音輸入。',
         },
@@ -356,13 +356,13 @@ const translations = {
             nextStepTitle: '建議的下一步', emailTitle: '郵件草稿', subject: '主旨', due: '期限',
         },
         capture: {
-            button: '智慧建檔', title: '從文字建立客戶',
+            button: '貼上建檔', title: '從文字建立客戶',
             help: '貼上郵件、簽名檔、名片文字或會議筆記，AI 會自動預填客戶表單，確認後即可儲存。',
             placeholder: '例如：「您好，我是 Acme 公司採購經理林小美 (amy@acme.com)，我們想汰換目前用 Excel 管理的流程……」',
             extract: 'AI 擷取', extracting: '擷取中...',
         },
         closeReason: {
-            wonTitle: '這筆為什麼贏？', lostTitle: '這筆為什麼輸？', help: '簡短記錄原因，團隊才能從每筆交易中學習。',
+            wonTitle: '這筆為什麼贏？', lostTitle: '這筆為什麼輸？', help: '儀表板會彙整這些原因，看得出輸贏的規律。',
             placeholder: '例如：價格、缺少功能、選擇了競爭對手 X……', save: '儲存', skip: '略過',
             presets: { price: '價格', features: '功能', competitor: '競爭對手', timing: '時機 / 預算', relationship: '關係經營' },
         },

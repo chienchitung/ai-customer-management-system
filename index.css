@@ -90,16 +90,6 @@ body { margin: 0; background: rgb(var(--color-background)); }
 .chart-red { background-color: rgb(var(--chart-red)); }
 
 .metric-card { position: relative; overflow: hidden; }
-.metric-card::after {
-  content: '';
-  position: absolute;
-  width: 96px;
-  height: 96px;
-  right: -44px;
-  top: -44px;
-  border-radius: 999px;
-  background: rgb(var(--color-primary) / .08);
-}
 
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(4px); }
