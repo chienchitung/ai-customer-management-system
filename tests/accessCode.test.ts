@@ -43,8 +43,10 @@ describe('access code mode', () => {
     expect((await call(routes, '/api/google/connect', 'demo-2026')).body).toEqual({ available: false, connected: false, email: null });
   });
 
-  it('still refuses everything when neither Supabase nor a code is configured', async () => {
-    const routes = createRoutes(configFromEnv({ VERCEL: '1', COMPDF_API_KEY: 'ck' }), fakeFetch);
-    expect((await call(routes, '/api/documents/parse', 'anything', pdf)).body.error).toBe('server_misconfigured');
+  it('is open without a code when none is configured, under the same daily cap', async () => {
+    const routes = createRoutes(configFromEnv({ VERCEL: '1', COMPDF_API_KEY: 'ck', AI_DAILY_LIMIT: '1' }), fakeFetch);
+    expect((await call(routes, '/api/documents/parse', undefined, pdf)).status).toBe(200);
+    expect((await call(routes, '/api/documents/parse', undefined, pdf)).body.error).toBe('quota_exceeded');
+    expect((await call(routes, '/api/google/connect')).body).toEqual({ available: false, connected: false, email: null });
   });
 });

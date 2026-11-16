@@ -8,6 +8,8 @@ import { ServerConfig } from './config.js';
 export const LOCAL_USER = 'local';
 /** Everyone who unlocked the API with APP_ACCESS_CODE shares this identity (and its daily limit). */
 export const ACCESS_CODE_USER = 'access-code';
+/** Visitors of a deployment with neither Supabase nor an access code: open, but under a shared daily cap. */
+export const ANONYMOUS_USER = 'anonymous';
 
 const sameText = (a: string, b: string) => {
   const x = Buffer.from(a); const y = Buffer.from(b);
@@ -20,15 +22,16 @@ const userCache = new Map<string, { id: string; expires: number }>();
 export const requireUser = async (req: Req, config: ServerConfig, fetchImpl: typeof fetch = fetch): Promise<string> => {
   if (!config.supabaseUrl || !config.supabaseAnonKey) {
     if (config.allowLocalMode) return LOCAL_USER;
-    // Without Supabase there is no login; a shared access code keeps strangers from spending the
-    // Gemini and ComPDF keys behind this public URL.
+    // Without Supabase there is no login. Set APP_ACCESS_CODE to keep strangers from spending the
+    // Gemini and ComPDF keys behind this public URL; without it the API is open to anyone, limited
+    // only by the shared daily cap (AI_DAILY_LIMIT).
     if (config.appAccessCode) {
       const given = String(req.headers['x-access-code'] ?? '').trim();
       if (!given) throw new HttpError(401, 'access_code_required');
       if (!sameText(given, config.appAccessCode)) throw new HttpError(401, 'access_code_invalid');
       return ACCESS_CODE_USER;
     }
-    throw new HttpError(500, 'server_misconfigured');
+    return ANONYMOUS_USER;
   }
   const token = bearerToken(req);
   if (!token) throw new HttpError(401, 'unauthorized');
