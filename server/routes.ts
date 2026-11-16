@@ -1,7 +1,7 @@
 import { GoogleGenAI } from '@google/genai';
 import { Handler, HttpError, readJson, route, sendJson, queryParams } from './http.js';
 import { ServerConfig, configFromEnv } from './config.js';
-import { ACCESS_CODE_USER, LOCAL_USER, createAdmin, requireUser } from './supabase.js';
+import { ACCESS_CODE_USER, ANONYMOUS_USER, LOCAL_USER, createAdmin, requireUser } from './supabase.js';
 import { MAX_DOCUMENT_BYTES, DOCUMENT_TYPES, checkComPDFTask, signTask, startComPDFTask, verifyTask } from './compdf.js';
 import { GMAIL_SCOPES, getMessageText, getProfileEmail, listMessagesWith, listRecentInbox, refreshAccessToken, revokeToken, sendEmail } from './google.js';
 
@@ -38,13 +38,14 @@ export const createRoutes = (config: ServerConfig, fetchImpl: typeof fetch = fet
   const ai = config.geminiApiKey ? new GoogleGenAI({ apiKey: config.geminiApiKey }) : null;
   const admin = createAdmin(config, fetchImpl);
 
-  // Access-code mode has no database, so its daily limit is counted per server instance. It is a
-  // rough cap (each warm instance counts separately), enough to stop a leaked code from running up a bill.
+  // Access-code and open (anonymous) modes have no database, so their shared daily limit is counted
+  // per server instance. It is a rough cap (each warm instance counts separately), enough to stop a
+  // leaked code or a stranger from running up a bill.
   const accessUsage = { day: '', count: 0 };
   /** Counts one AI or document call against the user's daily limit; false when the limit is reached. */
   const consumeQuota = async (userId: string) => {
     if (userId === LOCAL_USER) return true;
-    if (userId === ACCESS_CODE_USER) {
+    if (userId === ACCESS_CODE_USER || userId === ANONYMOUS_USER) {
       const day = new Date().toISOString().slice(0, 10);
       if (accessUsage.day !== day) { accessUsage.day = day; accessUsage.count = 0; }
       return ++accessUsage.count <= config.aiDailyLimit;

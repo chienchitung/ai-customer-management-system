@@ -40,7 +40,7 @@
 - ComPDF 直接呼叫 ComPDF v2 API（與官方 [ComPDF MCP](https://github.com/ComPDFKit/compdf-mcp) 包裝的是同一組端點），不需另外架設 MCP 服務；設定 `COMPDF_API_KEY` 即可啟用。
 - Google refresh token 存在 `google_tokens` 表，瀏覽器端無任何讀取權限。
 - 未設定 Supabase 時為「本機模式」：不需登入、資料存於瀏覽器，適合試用與開發。
-- 正式環境（Vercel）未設定 Supabase 時，伺服器預設拒絕 AI 與文件讀取，避免任何人用掉你的 Gemini／ComPDF 額度。若只想快速公開試用（例如給評審），設定 `APP_ACCESS_CODE`：第一次使用 AI 時輸入存取碼，瀏覽器會記住；所有使用存取碼的人共用每日上限（`AI_DAILY_LIMIT`）。Gmail 整合仍需 Supabase 登入。
+- 正式環境（Vercel）未設定 Supabase 時，AI 與文件讀取**不需登入即可使用**，只有共用的每日上限（`AI_DAILY_LIMIT`，預設 300 次）防止暴量。要限制使用者時，設定 `APP_ACCESS_CODE`：第一次使用 AI 時輸入存取碼，瀏覽器會記住，沒有存取碼的人無法使用你的 Gemini／ComPDF 額度。Gmail 整合仍需 Supabase 登入。
 
 ## 部署步驟
 

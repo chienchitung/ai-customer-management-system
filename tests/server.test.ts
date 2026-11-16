@@ -68,9 +68,9 @@ describe('auth', () => {
     expect((await call(routes, '/api/google/connect', { token: 'bad' })).status).toBe(401);
   });
 
-  it('refuses to run in production without Supabase config', async () => {
-    const routes = createRoutes(configFromEnv({ VERCEL: '1', GEMINI_API_KEY: 'k' }), makeFetch({ tokens: {}, quota: 1, sent: [] }));
-    expect((await call(routes, '/api/ai', { method: 'POST', body: { contents: [{ role: 'user', text: 'hi' }] } })).body.error).toBe('server_misconfigured');
+  it('runs open in production without Supabase or an access code, still checking the request', async () => {
+    const routes = createRoutes(configFromEnv({ VERCEL: '1' }), makeFetch({ tokens: {}, quota: 1, sent: [] }));
+    expect((await call(routes, '/api/ai', { method: 'POST', body: { contents: [{ role: 'user', text: 'hi' }] } })).body.error).toBe('missing_api_key');
   });
 });
 
